@@ -1,13 +1,13 @@
-// module.exports = (err, req, res, next) => {
-//   console.error(err);
-//   res.status(500).json({ error: 'Internal Server Error' });
-// };
-
 module.exports = (err, req, res, next) => {
   console.error(err);
 
-  res.status(500).json({
+  const statusCode = err.statusCode || 500;
+  const isProd = process.env.NODE_ENV === 'production';
+
+  res.status(statusCode).json({
     success: false,
-    message: err.message || 'Internal Server Error'
+    message: isProd
+      ? 'Internal Server Error'
+      : err.message || 'Internal Server Error'
   });
 };

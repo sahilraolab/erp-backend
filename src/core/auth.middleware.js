@@ -6,7 +6,8 @@ const Permission = require('../modules/admin/permission.model');
 module.exports = (requiredPermission = null) => {
   return async (req, res, next) => {
     const header = req.headers.authorization;
-    if (!header) {
+
+    if (!header || !header.startsWith('Bearer ')) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
@@ -26,9 +27,12 @@ module.exports = (requiredPermission = null) => {
       }
 
       if (requiredPermission) {
-        const allowed = user.role.permissions.some(
+        const permissions = user.role?.permissions || [];
+
+        const allowed = permissions.some(
           p => p.key === requiredPermission
         );
+
         if (!allowed) {
           return res.status(403).json({ message: 'Permission denied' });
         }
@@ -37,7 +41,8 @@ module.exports = (requiredPermission = null) => {
       req.user = user;
       next();
     } catch (err) {
-      return res.status(401).json({ message: 'Invalid token' });
+      console.error('Auth middleware error:', err.message);
+      return res.status(401).json({ message: 'Unauthorized' });
     }
   };
 };

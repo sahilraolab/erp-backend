@@ -6,18 +6,23 @@ const Role = require('../src/modules/admin/role.model');
 const User = require('../src/modules/admin/user.model');
 const Permission = require('../src/modules/admin/permission.model');
 
-// role-permission mapping import
+// ensure junction model is registered
 require('../src/modules/admin/rolePermission.model');
 
 (async () => {
   try {
-    await sequelize.sync({ alter: true });
+    // ❗ NEVER alter schema in seeds
+    await sequelize.sync();
 
-    // 1. Create permissions
+    /* ================= PERMISSIONS ================= */
+
     const permissions = [
       // admin
       'admin.users.manage',
+      'admin.users.view',
       'admin.roles.manage',
+      'admin.roles.view',
+      'admin.audit.view',
 
       // masters
       'masters.create',
@@ -33,41 +38,52 @@ require('../src/modules/admin/rolePermission.model');
       'accounts.post'
     ];
 
-    const permissionRecords = [];
     for (const key of permissions) {
-      const [perm] = await Permission.findOrCreate({
+      await Permission.findOrCreate({
         where: { key },
         defaults: {
           module: key.split('.')[0],
           action: key.split('.')[1]
         }
       });
-      permissionRecords.push(perm);
     }
 
-    // 2. Create Admin Role
+    /* ================= SUPER ADMIN ROLE ================= */
+
     const [adminRole] = await Role.findOrCreate({
       where: { name: 'SUPER_ADMIN' }
     });
 
-    await adminRole.setPermissions(permissionRecords);
+    // SUPER_ADMIN always gets ALL permissions
+    const allPermissions = await Permission.findAll();
+    await adminRole.setPermissions(allPermissions);
 
-    // 3. Create Admin User
-    const password = await bcrypt.hash('admin@123', 10);
+    /* ================= SUPER ADMIN USER ================= */
+
+    const adminEmail =
+      (process.env.SUPER_ADMIN_EMAIL || 'admin@erp.com')
+        .toLowerCase()
+        .trim();
+
+    const adminPassword =
+      process.env.SUPER_ADMIN_PASSWORD || 'admin@123';
+
+    const hash = await bcrypt.hash(adminPassword, 10);
 
     await User.findOrCreate({
-      where: { email: 'admin@erp.com' },
+      where: { email: adminEmail },
       defaults: {
         name: 'Super Admin',
-        password,
+        email: adminEmail,
+        password: hash,
         roleId: adminRole.id
       }
     });
 
     console.log('✅ Super Admin seeded successfully');
-    process.exit();
+    process.exit(0);
   } catch (err) {
-    console.error('❌ Seed failed', err);
+    console.error('❌ Seed failed:', err);
     process.exit(1);
   }
 })();
