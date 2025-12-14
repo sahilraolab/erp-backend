@@ -22,7 +22,12 @@ const Account = sequelize.define('account', {
       'EQUITY'
     )
   },
-  parentId: DataTypes.INTEGER
+  parentId: DataTypes.INTEGER,
+  companyId: {
+  type: DataTypes.INTEGER,
+  allowNull: false
+}
+
 });
 
 module.exports = Account;

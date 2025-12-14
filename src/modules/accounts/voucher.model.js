@@ -8,21 +8,23 @@
 //   date: DataTypes.DATE,
 // });
 
-const { DataTypes } = require('sequelize');
-const sequelize = require('../../config/db');
+const { DataTypes } = require("sequelize");
+const sequelize = require("../../config/db");
 
-const Voucher = sequelize.define('voucher', {
+const Voucher = sequelize.define("voucher", {
   voucherNo: { type: DataTypes.STRING, unique: true },
   date: DataTypes.DATE,
   type: {
-    type: DataTypes.ENUM('JV', 'PV', 'RV')
+    type: DataTypes.ENUM("JV", "PV", "RV"),
   },
   narration: DataTypes.TEXT,
   posted: { type: DataTypes.BOOLEAN, defaultValue: false },
-  indexes: [
-  { fields: ['posted'] },
-  { fields: ['date'] }
-]
+  indexes: [{ fields: ["posted"] }, { fields: ["date"] }],
+  companyId: {
+  type: DataTypes.INTEGER,
+  allowNull: false
+}
+
 });
 
 module.exports = Voucher;

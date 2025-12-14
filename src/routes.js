@@ -30,5 +30,9 @@ module.exports = (app) => {
   app.use('/accounts/reports', require('./modules/accounts/report.routes'));
   app.use('/qaqc', require('./modules/qaqc/qaqc.routes'));
   app.use('/workflow', require('./modules/workflow/workflow.routes'));
-  
+  app.use('/mis', require('./modules/mis/mis.routes')); 
+  app.use('/tax', require('./modules/tax/tax.routes'));
+  app.use('/statutory', require('./modules/statutory/statutory.routes'));
+
+
 };

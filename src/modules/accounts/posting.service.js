@@ -70,3 +70,13 @@ await withTx(async (t) => {
 
   // safe to proceed
 });
+
+
+for (const tax of taxes) {
+  await Line.create({
+    voucherId: voucher.id,
+    accountId: tax.accountId,
+    debit: tax.value,
+    credit: 0
+  }, { transaction: t });
+}
