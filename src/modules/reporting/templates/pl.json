@@ -1,0 +1,3 @@
+{
+  "query": "SELECT a.name, SUM(vl.debit - vl.credit) amount FROM voucher_lines vl JOIN accounts a ON a.id=vl.account_id WHERE a.type IN ('INCOME','EXPENSE') GROUP BY a.id"
+}
