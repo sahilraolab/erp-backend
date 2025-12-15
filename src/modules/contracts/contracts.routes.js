@@ -1,11 +1,3 @@
-// const router = require('express').Router();
-
-// router.get('/health', (req, res) => {
-//   res.json({ module: 'contracts', status: 'ok' });
-// });
-
-// module.exports = router;
-
 const router = require('express').Router();
 const auth = require('../../core/auth.middleware');
 const ctrl = require('./contracts.controller');
@@ -24,6 +16,7 @@ router.post('/work-orders/revise', auth('contracts.update'), ctrl.reviseWO);
 // RA Bills
 router.post('/ra-bills', auth('contracts.create'), ctrl.createRABill);
 router.put('/ra-bills/:id/approve', auth('contracts.approve'), ctrl.approveRABill);
+router.put('/ra-bills/:id/post', auth('contracts.approve'), ctrl.postRABill);
 
 // Advances
 router.post('/advances', auth('contracts.create'), ctrl.createAdvance);

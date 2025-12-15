@@ -28,6 +28,7 @@ require('../src/modules/admin/rolePermission.model');
       'masters.create',
       'masters.update',
       'masters.view',
+      'masters.delete',
 
       // purchase
       'purchase.create',

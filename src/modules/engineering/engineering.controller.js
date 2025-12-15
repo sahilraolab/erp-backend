@@ -1,55 +1,132 @@
 const audit = require('../../core/audit');
-const Budget = require('./budget.model');
-const Estimate = require('./estimate.model');
-const Version = require('./estimateVersion.model');
-const BBS = require('./bbs.model');
-const Drawing = require('./drawing.model');
-const Revision = require('./drawingRevision.model');
-const Compliance = require('./compliance.model');
+const withTx = require('../../core/withTransaction');
+const service = require('./engineering.service');
+
+/* ================= BUDGET ================= */
 
 exports.createBudget = async (req, res) => {
-  const b = await Budget.create(req.body);
-  await audit({ userId: req.user.id, action: 'CREATE_BUDGET', module: 'ENGINEERING', recordId: b.id });
-  res.json(b);
+  const budget = await service.createBudget(req.body);
+
+  await audit({
+    userId: req.user.id,
+    action: 'CREATE_BUDGET',
+    module: 'ENGINEERING',
+    recordId: budget.id
+  });
+
+  res.json(budget);
 };
 
 exports.approveBudget = async (req, res) => {
-  await Budget.update({ status: 'APPROVED' }, { where: { id: req.params.id } });
+  await service.approveBudget(req.params.id);
+
+  await audit({
+    userId: req.user.id,
+    action: 'APPROVE_BUDGET',
+    module: 'ENGINEERING',
+    recordId: req.params.id
+  });
+
   res.json({ success: true });
 };
 
+/* ================= ESTIMATE ================= */
+
 exports.createEstimate = async (req, res) => {
-  const e = await Estimate.create(req.body);
-  await Version.create({ estimateId: e.id, versionNo: 1, amount: e.baseAmount });
-  res.json(e);
+  const estimate = await withTx(async (t) => {
+    return service.createEstimate(req.body, t);
+  });
+
+  await audit({
+    userId: req.user.id,
+    action: 'CREATE_ESTIMATE',
+    module: 'ENGINEERING',
+    recordId: estimate.id
+  });
+
+  res.json(estimate);
 };
 
 exports.addEstimateVersion = async (req, res) => {
-  const v = await Version.create(req.body);
-  res.json(v);
+  const version = await service.addEstimateVersion(req.body);
+
+  await audit({
+    userId: req.user.id,
+    action: 'ADD_ESTIMATE_VERSION',
+    module: 'ENGINEERING',
+    recordId: version.id
+  });
+
+  res.json(version);
 };
 
+/* ================= BBS ================= */
+
 exports.createBBS = async (req, res) => {
-  const bbs = await BBS.create(req.body);
+  const bbs = await service.createBBS(req.body);
+
+  await audit({
+    userId: req.user.id,
+    action: 'CREATE_BBS',
+    module: 'ENGINEERING',
+    recordId: bbs.id
+  });
+
   res.json(bbs);
 };
 
+/* ================= DRAWINGS ================= */
+
 exports.createDrawing = async (req, res) => {
-  const d = await Drawing.create(req.body);
-  res.json(d);
+  const drawing = await service.createDrawing(req.body);
+
+  await audit({
+    userId: req.user.id,
+    action: 'CREATE_DRAWING',
+    module: 'ENGINEERING',
+    recordId: drawing.id
+  });
+
+  res.json(drawing);
 };
 
 exports.reviseDrawing = async (req, res) => {
-  const r = await Revision.create(req.body);
-  res.json(r);
+  const revision = await service.reviseDrawing(req.body);
+
+  await audit({
+    userId: req.user.id,
+    action: 'REVISE_DRAWING',
+    module: 'ENGINEERING',
+    recordId: revision.id
+  });
+
+  res.json(revision);
 };
 
 exports.approveDrawing = async (req, res) => {
-  await Drawing.update({ status: 'APPROVED' }, { where: { id: req.params.id } });
+  await service.approveDrawing(req.params.id);
+
+  await audit({
+    userId: req.user.id,
+    action: 'APPROVE_DRAWING',
+    module: 'ENGINEERING',
+    recordId: req.params.id
+  });
+
   res.json({ success: true });
 };
 
+/* ================= COMPLIANCE ================= */
+
 exports.addCompliance = async (req, res) => {
-  const c = await Compliance.create(req.body);
-  res.json(c);
+  const compliance = await service.addCompliance(req.body);
+
+  await audit({
+    userId: req.user.id,
+    action: 'ADD_COMPLIANCE',
+    module: 'ENGINEERING',
+    recordId: compliance.id
+  });
+
+  res.json(compliance);
 };

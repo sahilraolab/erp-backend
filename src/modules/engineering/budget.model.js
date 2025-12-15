@@ -1,12 +1,3 @@
-// const { DataTypes } = require('sequelize');
-// const sequelize = require('../../config/db');
-
-// module.exports = sequelize.define('ProjectBudget', {
-//   projectId: DataTypes.INTEGER,
-//   costHead: DataTypes.STRING,
-//   amount: DataTypes.DECIMAL,
-// });
-
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 

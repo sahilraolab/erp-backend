@@ -1,20 +1,19 @@
 const audit = require('../../core/audit');
+const withTx = require('../../core/withTransaction');
+
 const Requisition = require('./requisition.model');
 const RFQ = require('./rfq.model');
 const Quotation = require('./quotation.model');
 const PO = require('./po.model');
-const GRN = require('../inventory/grn.model');
 const PurchaseBill = require('./purchaseBill.model');
+
+const GRN = require('../inventory/grn.model');
 const workflow = require('../workflow/workflow.service');
-const workflow = require('../workflow/workflow.helper');
-const posting = require('../accounts/posting.service');
-const withTx = require('../../core/withTransaction');
 const posting = require('../accounts/posting.service');
 
 const genNo = (p) => `${p}-${Date.now()}`;
 
-// const genNo = (prefix) =>
-//   `${prefix}-${Date.now()}`;
+/* ================= REQUISITION ================= */
 
 exports.createRequisition = async (req, res) => {
   const rec = await Requisition.create({
@@ -48,6 +47,8 @@ exports.submitRequisition = async (req, res) => {
 
   res.json({ success: true });
 };
+
+/* ================= RFQ / QUOTATION ================= */
 
 exports.createRFQ = async (req, res) => {
   const rfq = await RFQ.create({
@@ -94,11 +95,29 @@ exports.approveQuotation = async (req, res) => {
   res.json({ success: true });
 };
 
+/* ================= PO ================= */
+
 exports.createPO = async (req, res) => {
+  const existing = await PO.findOne({
+    where: { quotationId: req.body.quotationId }
+  });
+
+  if (existing) {
+    return res.status(400).json({
+      message: 'PO already exists for this quotation'
+    });
+  }
+
   const po = await PO.create({
     poNo: genNo('PO'),
     quotationId: req.body.quotationId,
     totalAmount: req.body.totalAmount
+  });
+
+  await workflow.start({
+    module: 'PURCHASE',
+    entity: 'PO',
+    recordId: po.id
   });
 
   await audit({
@@ -108,8 +127,13 @@ exports.createPO = async (req, res) => {
     recordId: po.id
   });
 
-  res.json(po);
+  res.json({
+    po,
+    message: 'PO created and sent for approval'
+  });
 };
+
+/* ================= PURCHASE BILL ================= */
 
 exports.createPurchaseBill = async (req, res) => {
   const { grnId, supplierId, basicAmount, taxAmount } = req.body;
@@ -130,11 +154,18 @@ exports.createPurchaseBill = async (req, res) => {
     billDate: new Date(),
     basicAmount,
     taxAmount,
-    totalAmount: basicAmount + taxAmount
+    totalAmount: basicAmount + taxAmount,
+    postedToAccounts: false
   });
 
   grn.billed = true;
   await grn.save();
+
+  await workflow.start({
+    module: 'PURCHASE',
+    entity: 'PURCHASE_BILL',
+    recordId: bill.id
+  });
 
   await audit({
     userId: req.user.id,
@@ -143,32 +174,32 @@ exports.createPurchaseBill = async (req, res) => {
     recordId: bill.id
   });
 
-  res.json(bill);
-};
-
-exports.postPurchaseBill = async (req, res) => {
-  await PurchaseBill.update(
-    { status: 'POSTED' },
-    { where: { id: req.params.id } }
-  );
-
-  // 🔌 Accounts integration will hook here later
-
-  await audit({
-    userId: req.user.id,
-    action: 'POST_PURCHASE_BILL',
-    module: 'PURCHASE',
-    recordId: req.params.id
+  res.json({
+    bill,
+    message: 'Purchase Bill created and sent for approval'
   });
-
-  res.json({ success: true });
 };
 
-exports.postPurchaseBill = async (req, res) => {
-  await withTx(async (t) => {
-    const bill = await PurchaseBill.findByPk(req.params.id, { transaction: t });
+/* ================= POST TO ACCOUNTS ================= */
 
-    if (bill.postedToAccounts) throw new Error('Already posted');
+exports.postPurchaseBill = async (req, res) => {
+  const billId = req.params.id;
+
+  await withTx(async (t) => {
+    await workflow.ensureApproved(
+      'PURCHASE',
+      'PURCHASE_BILL',
+      billId
+    );
+
+    const bill = await PurchaseBill.findByPk(billId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
+    if (bill.postedToAccounts) {
+      throw new Error('Purchase Bill already posted');
+    }
 
     await posting.postVoucher({
       type: 'JV',
@@ -177,50 +208,22 @@ exports.postPurchaseBill = async (req, res) => {
       creditAccountCode: 'SUPPLIER_PAYABLE',
       amount: bill.totalAmount,
       userId: req.user.id,
-      reference: `PB:${bill.id}`,
-      transaction: t   // 🔑 pass transaction
+      reference: `PURCHASE_BILL:${bill.id}`,
+      transaction: t
     });
 
-    await bill.update({ postedToAccounts: true }, { transaction: t });
+    await bill.update(
+      { postedToAccounts: true },
+      { transaction: t }
+    );
   });
 
-  res.json({ success: true });
-};
-
-
-exports.createPO = async (req, res) => {
-  const po = await PO.create(req.body);
-
-  await workflow.start({
-    module: 'PURCHASE',
-    entity: 'PO',
-    recordId: po.id
-  });
-
-  res.json({
-    po,
-    message: 'PO created and sent for approval'
-  });
-};
-
-exports.approvePurchaseBill = async (req, res) => {
-  const billId = req.params.id;
-
-  await workflow.ensureApproved('PURCHASE', 'PURCHASE_BILL', billId);
-
-  const bill = await PurchaseBill.findByPk(billId);
-
-  await posting.postVoucher({
-    type: 'JV',
-    narration: `Purchase Bill ${bill.billNo}`,
-    debitAccountCode: 'PURCHASE_EXP',
-    creditAccountCode: 'SUPPLIER_PAYABLE',
-    amount: bill.totalAmount,
+  await audit({
     userId: req.user.id,
-    reference: `PURCHASE_BILL:${bill.id}`
+    action: 'POST_PURCHASE_BILL',
+    module: 'PURCHASE',
+    recordId: billId
   });
-
-  await bill.update({ postedToAccounts: true });
 
   res.json({ success: true, message: 'Posted to accounts' });
 };

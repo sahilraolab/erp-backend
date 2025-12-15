@@ -1,12 +1,3 @@
-// const { DataTypes } = require('sequelize');
-// const sequelize = require('../../config/db');
-
-// module.exports = sequelize.define('RABill', {
-//   workOrderId: DataTypes.INTEGER,
-//   amount: DataTypes.DECIMAL,
-//   status: DataTypes.STRING,
-// });
-
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
@@ -20,14 +11,14 @@ const RABill = sequelize.define('ra_bill', {
     defaultValue: 'DRAFT'
   },
   postedToAccounts: {
-  type: DataTypes.BOOLEAN,
-  defaultValue: false,
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+}, {
   indexes: [
-  { fields: ['postedToAccounts'] },
-  { fields: ['createdAt'] }
-]
-}
-
+    { fields: ['postedToAccounts'] },
+    { fields: ['createdAt'] }
+  ]
 });
 
 module.exports = RABill;

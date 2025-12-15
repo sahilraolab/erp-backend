@@ -1,13 +1,3 @@
-// const { DataTypes } = require('sequelize');
-// const sequelize = require('../../config/db');
-
-// module.exports = sequelize.define('BBS', {
-//   projectId: DataTypes.INTEGER,
-//   name: DataTypes.STRING,
-//   parentId: DataTypes.INTEGER,
-// });
-
-
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 

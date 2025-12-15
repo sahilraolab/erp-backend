@@ -1,5 +1,7 @@
 const audit = require('../../core/audit');
 const models = {
+  Company: require('./company.model'),
+  Branch: require('./branch.model'),
   Project: require('./project.model'),
   Material: require('./material.model'),
   Supplier: require('./supplier.model'),
@@ -14,9 +16,9 @@ const crud = (Model, moduleName) => ({
     const record = await Model.create(req.body);
     await audit({
       userId: req.user.id,
-      action: 'CREATE',
+      action: "CREATE",
       module: moduleName,
-      recordId: record.id
+      recordId: record.id,
     });
     res.json(record);
   },
@@ -29,29 +31,38 @@ const crud = (Model, moduleName) => ({
     await Model.update(req.body, { where: { id: req.params.id } });
     await audit({
       userId: req.user.id,
-      action: 'UPDATE',
+      action: "UPDATE",
       module: moduleName,
-      recordId: req.params.id
+      recordId: req.params.id,
     });
     res.json({ success: true });
   },
 
   remove: async (req, res) => {
-    await Model.update(
-      { isActive: false },
-      { where: { id: req.params.id } }
-    );
+    const record = await Model.findByPk(req.params.id);
+    if (!record) return res.status(404).json({ message: "Not found" });
+
+    if ("isActive" in record) {
+      record.isActive = false;
+      await record.save();
+    } else {
+      await record.destroy();
+    }
+
     await audit({
       userId: req.user.id,
-      action: 'DELETE',
+      action: "DELETE",
       module: moduleName,
-      recordId: req.params.id
+      recordId: req.params.id,
     });
+
     res.json({ success: true });
-  }
+  },
 });
 
 module.exports = {
+  company: crud(models.Company, 'COMPANY'),
+  branch: crud(models.Branch, 'BRANCH'),
   project: crud(models.Project, 'PROJECT'),
   material: crud(models.Material, 'MATERIAL'),
   supplier: crud(models.Supplier, 'SUPPLIER'),

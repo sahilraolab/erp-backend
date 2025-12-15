@@ -1,13 +1,18 @@
 const audit = require('../../core/audit');
+const withTx = require('../../core/withTransaction');
+
 const GRN = require('./grn.model');
 const Stock = require('./stock.model');
-const Ledger = require('./stockLedger.model');
+const StockLedger = require('./stockLedger.model');
 const { ensureApproved } = require('../workflow/workflow.helper');
-const withTx = require('../../core/withTransaction');
 
 const genNo = (p) => `${p}-${Date.now()}`;
 
+/* ================= CREATE GRN ================= */
+
 exports.createGRN = async (req, res) => {
+  await ensureApproved('PURCHASE', 'PO', req.body.poId);
+
   const grn = await GRN.create({
     grnNo: genNo('GRN'),
     poId: req.body.poId,
@@ -25,56 +30,94 @@ exports.createGRN = async (req, res) => {
   res.json(grn);
 };
 
+/* ================= APPROVE GRN ================= */
+
 exports.approveGRN = async (req, res) => {
   const { materialId, qty, location } = req.body;
+  const grnId = req.params.id;
 
-  let stock = await Stock.findOne({ where: { materialId, location } });
-  if (!stock) {
-    stock = await Stock.create({ materialId, location, quantity: 0 });
-  }
+  await withTx(async (t) => {
+    const grn = await GRN.findByPk(grnId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
 
-  stock.quantity += qty;
-  await stock.save();
+    if (!grn || grn.status === 'APPROVED') {
+      throw new Error('Invalid or already approved GRN');
+    }
 
-  await Ledger.create({
-    materialId,
-    refType: 'GRN',
-    refId: req.params.id,
-    qtyIn: qty,
-    balanceQty: stock.quantity
+    let stock = await Stock.findOne({
+      where: { materialId, location },
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
+    if (!stock) {
+      stock = await Stock.create(
+        { materialId, location, quantity: 0 },
+        { transaction: t }
+      );
+    }
+
+    stock.quantity += qty;
+    await stock.save({ transaction: t });
+
+    await StockLedger.create(
+      {
+        materialId,
+        refType: 'GRN',
+        refId: grnId,
+        qtyIn: qty,
+        balanceQty: stock.quantity
+      },
+      { transaction: t }
+    );
+
+    await grn.update(
+      { status: 'APPROVED' },
+      { transaction: t }
+    );
   });
-
-  await GRN.update(
-    { status: 'APPROVED' },
-    { where: { id: req.params.id } }
-  );
 
   await audit({
     userId: req.user.id,
     action: 'APPROVE_GRN',
     module: 'INVENTORY',
-    recordId: req.params.id
+    recordId: grnId
   });
 
   res.json({ success: true });
 };
 
+/* ================= ISSUE MATERIAL ================= */
+
 exports.issueMaterial = async (req, res) => {
   const { materialId, qty, location } = req.body;
 
-  const stock = await Stock.findOne({ where: { materialId, location } });
-  if (!stock || stock.quantity < qty) {
-    return res.status(400).json({ message: 'Insufficient stock' });
-  }
+  await withTx(async (t) => {
+    const stock = await Stock.findOne({
+      where: { materialId, location },
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
 
-  stock.quantity -= qty;
-  await stock.save();
+    if (!stock || stock.quantity < qty) {
+      throw new Error('Insufficient stock');
+    }
 
-  await Ledger.create({
-    materialId,
-    refType: 'ISSUE',
-    qtyOut: qty,
-    balanceQty: stock.quantity
+    stock.quantity -= qty;
+    await stock.save({ transaction: t });
+
+    await StockLedger.create(
+      {
+        materialId,
+        refType: 'ISSUE',
+        refId: materialId,
+        qtyOut: qty,
+        balanceQty: stock.quantity
+      },
+      { transaction: t }
+    );
   });
 
   await audit({
@@ -87,35 +130,16 @@ exports.issueMaterial = async (req, res) => {
   res.json({ success: true });
 };
 
+/* ================= REPORTING ================= */
+
 exports.getStock = async (req, res) => {
   res.json(await Stock.findAll());
 };
 
 exports.getLedger = async (req, res) => {
-  res.json(await Ledger.findAll({
-    order: [['createdAt', 'DESC']]
-  }));
-};
-
-exports.createGRN = async (req, res) => {
-  await ensureApproved('PURCHASE', 'PO', req.body.poId);
-
-  const grn = await GRN.create(req.body);
-  res.json(grn);
-};
-
-exports.createGRN = async (req, res) => {
-  const result = await withTx(async (t) => {
-    const grn = await GRN.create(req.body, { transaction: t });
-
-    await StockLedger.create({
-      materialId: grn.materialId,
-      qty: grn.qty,
-      type: 'IN'
-    }, { transaction: t });
-
-    return grn;
-  });
-
-  res.json(result);
+  res.json(
+    await StockLedger.findAll({
+      order: [['createdAt', 'DESC']]
+    })
+  );
 };

@@ -16,7 +16,7 @@ const Estimate = sequelize.define('estimate', {
   name: DataTypes.STRING,
   baseAmount: DataTypes.FLOAT,
   status: {
-    type: DataTypes.ENUM('DRAFT', 'FINAL'),
+    type: DataTypes.ENUM('DRAFT', 'APPROVED'),
     defaultValue: 'DRAFT'
   }
 });

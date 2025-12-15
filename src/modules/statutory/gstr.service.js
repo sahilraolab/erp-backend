@@ -10,7 +10,7 @@ exports.gstr1Summary = async ({ from, to }) => {
     JOIN accounts a ON a.id = l.accountId
     WHERE v.posted = 1
       AND v.date BETWEEN :from AND :to
-      AND a.type IN ('OUTPUT_CGST','OUTPUT_SGST','OUTPUT_IGST')
+      AND a.code IN ('OUTPUT_CGST','OUTPUT_SGST','OUTPUT_IGST')
     GROUP BY a.name
   `, { replacements: { from, to } });
 

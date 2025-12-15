@@ -12,12 +12,19 @@ exports.generateDailySnapshot = async ({ date, projectId }) => {
     JOIN accounts a ON a.id = l.accountId
   `);
 
+  // const [[stock]] = await sequelize.query(`
+  //   SELECT
+  //     SUM(CASE WHEN type='IN' THEN value ELSE 0 END) as stockIn,
+  //     SUM(CASE WHEN type='OUT' THEN value ELSE 0 END) as stockOut
+  //   FROM stock_ledgers
+  // `);
   const [[stock]] = await sequelize.query(`
     SELECT
-      SUM(CASE WHEN type='IN' THEN value ELSE 0 END) as stockIn,
-      SUM(CASE WHEN type='OUT' THEN value ELSE 0 END) as stockOut
+      SUM(qtyIn) as stockIn,
+      SUM(qtyOut) as stockOut
     FROM stock_ledgers
   `);
+
 
   return MIS.create({
     date,
