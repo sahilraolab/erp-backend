@@ -1,6 +1,9 @@
 const audit = require('../../core/audit');
 const withTx = require('../../core/withTransaction');
 const service = require('./engineering.service');
+const BBS = require('./bbs.model');
+const Estimate = require('./estimate.model');
+const Budget = require('./budget.model');
 
 /* ================= BUDGET ================= */
 
@@ -58,6 +61,19 @@ exports.addEstimateVersion = async (req, res) => {
   });
 
   res.json(version);
+};
+
+exports.approveEstimate = async (req, res) => {
+  await service.approveEstimate(req.params.id);
+
+  await audit({
+    userId: req.user.id,
+    action: 'APPROVE_ESTIMATE',
+    module: 'ENGINEERING',
+    recordId: req.params.id
+  });
+
+  res.json({ success: true });
 };
 
 /* ================= BBS ================= */
@@ -129,4 +145,52 @@ exports.addCompliance = async (req, res) => {
   });
 
   res.json(compliance);
+};
+
+exports.listBBS = async (req, res) => {
+  const { projectId } = req.query;
+
+  if (!projectId) {
+    return res.status(400).json({
+      message: 'projectId query parameter is required'
+    });
+  }
+
+  const bbs = await BBS.findAll({
+    where: { projectId }
+  });
+
+  res.json(bbs);
+};
+
+exports.listEstimates = async (req, res) => {
+  const { projectId } = req.query;
+
+  if (!projectId) {
+    return res.status(400).json({
+      message: 'projectId query parameter is required'
+    });
+  }
+
+  const estimates = await Estimate.findAll({
+    where: { projectId }
+  });
+
+  res.json(estimates);
+};
+
+exports.getBudget = async (req, res) => {
+  const { projectId } = req.params;
+
+  if (!projectId) {
+    return res.status(400).json({
+      message: 'projectId param is required'
+    });
+  }
+
+  const budget = await Budget.findOne({
+    where: { projectId }
+  });
+
+  res.json(budget);
 };

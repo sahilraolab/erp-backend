@@ -9,6 +9,11 @@ router.put('/budget/:id/approve', auth('engineering.approve'), ctrl.approveBudge
 // Estimate
 router.post('/estimate', auth('engineering.create'), ctrl.createEstimate);
 router.post('/estimate/version', auth('engineering.update'), ctrl.addEstimateVersion);
+router.put(
+  '/estimate/:id/approve',
+  auth('engineering.approve'),
+  ctrl.approveEstimate
+);
 
 // BBS
 router.post('/bbs', auth('engineering.create'), ctrl.createBBS);
@@ -20,5 +25,10 @@ router.put('/drawings/:id/approve', auth('engineering.approve'), ctrl.approveDra
 
 // Compliance
 router.post('/compliance', auth('engineering.create'), ctrl.addCompliance);
+
+router.get('/bbs', auth('engineering.view'), ctrl.listBBS);
+router.get('/estimate', auth('engineering.view'), ctrl.listEstimates);
+router.get('/budget/:projectId', auth('engineering.view'), ctrl.getBudget);
+
 
 module.exports = router;

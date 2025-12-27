@@ -4,14 +4,65 @@ const sequelize = require('../../config/db');
 const PurchaseBill = sequelize.define(
   'purchase_bill',
   {
-    billNo: { type: DataTypes.STRING, unique: true },
-    grnId: DataTypes.INTEGER,
-    supplierId: DataTypes.INTEGER,
-    billDate: DataTypes.DATE,
+    billNo: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false
+    },
 
-    basicAmount: DataTypes.FLOAT,
-    taxAmount: DataTypes.FLOAT,
-    totalAmount: DataTypes.FLOAT,
+    projectId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+
+    /* 🔒 Engineering references */
+    budgetId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+
+    estimateId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+
+    poId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+
+    grnId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      unique: true, // ✅ one bill per GRN
+      comment: 'Each GRN can be billed only once'
+    },
+
+    supplierId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+
+    billDate: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW
+    },
+
+    basicAmount: {
+      type: DataTypes.DECIMAL(14, 2),
+      allowNull: false
+    },
+
+    taxAmount: {
+      type: DataTypes.DECIMAL(14, 2),
+      allowNull: false,
+      defaultValue: 0
+    },
+
+    totalAmount: {
+      type: DataTypes.DECIMAL(14, 2),
+      allowNull: false
+    },
 
     status: {
       type: DataTypes.ENUM('DRAFT', 'APPROVED', 'POSTED'),
@@ -25,32 +76,15 @@ const PurchaseBill = sequelize.define(
   },
   {
     indexes: [
+      { fields: ['projectId'] },
+      { fields: ['supplierId'] },
+      { fields: ['poId'] },
+      { fields: ['grnId'] },
       { fields: ['postedToAccounts'] },
-      { fields: ['createdAt'] },
-      { fields: ['supplierId'] }
+      { fields: ['status'] },
+      { fields: ['createdAt'] }
     ]
   }
 );
 
 module.exports = PurchaseBill;
-
-// ❌ indexes placed inside attributes – INVALID
-// ✅ move indexes to model options
-// const PurchaseBill = sequelize.define('purchase_bill', {
-//   billNo: { type: DataTypes.STRING, unique: true },
-//   grnId: DataTypes.INTEGER,
-//   supplierId: DataTypes.INTEGER,
-//   billDate: DataTypes.DATE,
-//   basicAmount: DataTypes.FLOAT,
-//   taxAmount: DataTypes.FLOAT,
-//   totalAmount: DataTypes.FLOAT,
-//   postedToAccounts: {
-//     type: DataTypes.BOOLEAN,
-//     defaultValue: false
-//   }
-// }, {
-//   indexes: [
-//     { fields: ['postedToAccounts'] },
-//     { fields: ['createdAt'] }
-//   ]
-// });

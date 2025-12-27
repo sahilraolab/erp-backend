@@ -11,14 +11,36 @@ const GRN = require('../inventory/grn.model');
 const workflow = require('../workflow/workflow.service');
 const posting = require('../accounts/posting.service');
 
+const Budget = require('../engineering/budget.model');
+const Estimate = require('../engineering/estimate.model');
+
 const genNo = (p) => `${p}-${Date.now()}`;
 
 /* ================= REQUISITION ================= */
 
 exports.createRequisition = async (req, res) => {
+  const { projectId, budgetId, estimateId } = req.body;
+
+  /* 🔒 HARD VALIDATIONS */
+  const budget = await Budget.findOne({
+    where: { id: budgetId, projectId, status: 'APPROVED' }
+  });
+  if (!budget) {
+    return res.status(400).json({ message: 'Approved budget required' });
+  }
+
+  const estimate = await Estimate.findOne({
+    where: { id: estimateId, projectId, status: 'FINAL' }
+  });
+  if (!estimate) {
+    return res.status(400).json({ message: 'Final estimate required' });
+  }
+
   const rec = await Requisition.create({
     reqNo: genNo('MR'),
-    projectId: req.body.projectId,
+    projectId,
+    budgetId,
+    estimateId,
     requestedBy: req.user.id
   });
 
@@ -48,12 +70,13 @@ exports.submitRequisition = async (req, res) => {
   res.json({ success: true });
 };
 
-/* ================= RFQ / QUOTATION ================= */
+/* ================= RFQ ================= */
 
 exports.createRFQ = async (req, res) => {
   const rfq = await RFQ.create({
     rfqNo: genNo('RFQ'),
-    requisitionId: req.body.requisitionId
+    requisitionId: req.body.requisitionId,
+    supplierId: req.body.supplierId
   });
 
   await audit({
@@ -65,6 +88,8 @@ exports.createRFQ = async (req, res) => {
 
   res.json(rfq);
 };
+
+/* ================= QUOTATION ================= */
 
 exports.submitQuotation = async (req, res) => {
   const q = await Quotation.create(req.body);
@@ -80,16 +105,24 @@ exports.submitQuotation = async (req, res) => {
 };
 
 exports.approveQuotation = async (req, res) => {
-  await Quotation.update(
-    { status: 'APPROVED' },
-    { where: { id: req.params.id } }
+  const quotation = await Quotation.findByPk(req.params.id);
+  if (!quotation) {
+    return res.status(404).json({ message: 'Quotation not found' });
+  }
+
+  await quotation.update({ status: 'APPROVED' });
+
+  // 🔒 Close RFQ once quotation approved
+  await RFQ.update(
+    { status: 'CLOSED' },
+    { where: { id: quotation.rfqId } }
   );
 
   await audit({
     userId: req.user.id,
     action: 'APPROVE_QUOTATION',
     module: 'PURCHASE',
-    recordId: req.params.id
+    recordId: quotation.id
   });
 
   res.json({ success: true });
@@ -108,10 +141,19 @@ exports.createPO = async (req, res) => {
     });
   }
 
+  const quotation = await Quotation.findByPk(req.body.quotationId);
+  if (!quotation || quotation.status !== 'APPROVED') {
+    return res.status(400).json({ message: 'Approved quotation required' });
+  }
+
   const po = await PO.create({
     poNo: genNo('PO'),
-    quotationId: req.body.quotationId,
-    totalAmount: req.body.totalAmount
+    projectId: quotation.projectId,
+    budgetId: quotation.budgetId,
+    estimateId: quotation.estimateId,
+    quotationId: quotation.id,
+    supplierId: quotation.supplierId,
+    totalAmount: quotation.totalAmount
   });
 
   await workflow.start({
@@ -147,19 +189,26 @@ exports.createPurchaseBill = async (req, res) => {
     return res.status(400).json({ message: 'GRN already billed' });
   }
 
+  const po = await PO.findByPk(req.body.poId);
+  if (!po || po.status !== 'APPROVED') {
+    return res.status(400).json({ message: 'Approved PO required' });
+  }
+
   const bill = await PurchaseBill.create({
     billNo: genNo('PB'),
+    projectId: po.projectId,
+    budgetId: po.budgetId,
+    estimateId: po.estimateId,
+    poId: po.id,
     grnId,
-    supplierId,
+    supplierId: po.supplierId,
     billDate: new Date(),
     basicAmount,
     taxAmount,
-    totalAmount: basicAmount + taxAmount,
-    postedToAccounts: false
+    totalAmount: basicAmount + taxAmount
   });
 
-  grn.billed = true;
-  await grn.save();
+  await grn.update({ billed: true });
 
   await workflow.start({
     module: 'PURCHASE',

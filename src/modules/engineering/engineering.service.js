@@ -6,19 +6,28 @@ const Drawing = require('./drawing.model');
 const DrawingRevision = require('./drawingRevision.model');
 const Compliance = require('./compliance.model');
 
+
+const ensureEditable = (record, lockedStatus, message) => {
+  if (record.status === lockedStatus) {
+    throw new Error(message);
+  }
+};
+
 /* ================= BUDGET ================= */
 
 exports.createBudget = async (data, t) => {
-  return Budget.create(
-    { ...data, status: 'DRAFT' },
-    t ? { transaction: t } : undefined
-  );
+  return Budget.create({ ...data, status: 'DRAFT' }, { transaction: t });
 };
 
 exports.approveBudget = async (id, t) => {
-  return Budget.update(
+  const budget = await Budget.findByPk(id);
+  if (!budget) throw new Error('Budget not found');
+
+  ensureEditable(budget, 'APPROVED', 'Approved budget cannot be modified');
+
+  return budget.update(
     { status: 'APPROVED' },
-    { where: { id }, transaction: t }
+    { transaction: t }
   );
 };
 
@@ -43,13 +52,25 @@ exports.createEstimate = async (data, t) => {
 };
 
 exports.addEstimateVersion = async (data, t) => {
+  const estimate = await Estimate.findByPk(data.estimateId);
+  if (!estimate) throw new Error('Estimate not found');
+
+  ensureEditable(
+    estimate,
+    'FINAL',
+    'Finalized estimate cannot be modified'
+  );
+
   return EstimateVersion.create(data, { transaction: t });
 };
 
 exports.approveEstimate = async (id, t) => {
-  return Estimate.update(
+  const estimate = await Estimate.findByPk(id);
+  if (!estimate) throw new Error('Estimate not found');
+
+  return estimate.update(
     { status: 'FINAL' },
-    { where: { id }, transaction: t }
+    { transaction: t }
   );
 };
 
@@ -66,6 +87,15 @@ exports.createDrawing = async (data, t) => {
 };
 
 exports.reviseDrawing = async (data, t) => {
+  const drawing = await Drawing.findByPk(data.drawingId);
+  if (!drawing) throw new Error('Drawing not found');
+
+  ensureEditable(
+    drawing,
+    'APPROVED',
+    'Approved drawing cannot be revised'
+  );
+
   return DrawingRevision.create(data, { transaction: t });
 };
 

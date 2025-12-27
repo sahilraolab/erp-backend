@@ -1,13 +1,3 @@
-// const router = require('express').Router();
-// const auth = require('../../core/auth.middleware');
-// const service = require('./purchase.service');
-
-// router.post('/po', auth, service.createPO);
-// router.post('/grn/approve', auth, service.approveGRN);
-// router.post('/bill/approve', auth, service.approvePurchaseBill);
-
-// module.exports = router;
-
 const router = require('express').Router();
 const auth = require('../../core/auth.middleware');
 const ctrl = require('./purchase.controller');

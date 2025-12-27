@@ -6,6 +6,8 @@ const sequelize = require('./config/db');
 // 🔴 load associations FIRST
 require('./modules/admin/rolePermission.model');
 require('./modules/masters/masters.associations');
+require('./modules/engineering/engineering.associations');
+require('./modules/purchase/purchase.associations');
 
 
 const PORT = process.env.PORT || 3000;
