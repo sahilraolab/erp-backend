@@ -16,8 +16,20 @@ exports.postVoucher = async ({
   reference
 }) => {
   return sequelize.transaction(async (t) => {
-    const debitAcc = await Account.findOne({ where: { code: debitAccountCode } });
-    const creditAcc = await Account.findOne({ where: { code: creditAccountCode } });
+    // const debitAcc = await Account.findOne({ where: { code: debitAccountCode } });
+    // const creditAcc = await Account.findOne({ where: { code: creditAccountCode } });
+    const debitAcc = await Account.findOne({
+      where: { code: debitAccountCode },
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
+    const creditAcc = await Account.findOne({
+      where: { code: creditAccountCode },
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
 
     if (!debitAcc || !creditAcc) {
       throw new Error('Account mapping missing');
@@ -57,26 +69,3 @@ exports.postVoucher = async ({
     return voucher;
   });
 };
-
-await withTx(async (t) => {
-  const bill = await PurchaseBill.findByPk(id, {
-    transaction: t,
-    lock: t.LOCK.UPDATE
-  });
-
-  if (bill.postedToAccounts) {
-    throw new Error('Already posted');
-  }
-
-  // safe to proceed
-});
-
-
-for (const tax of taxes) {
-  await Line.create({
-    voucherId: voucher.id,
-    accountId: tax.accountId,
-    debit: tax.value,
-    credit: 0
-  }, { transaction: t });
-}

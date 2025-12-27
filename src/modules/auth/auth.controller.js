@@ -41,8 +41,10 @@ exports.login = async (req, res) => {
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
       role: user.role.name,
-      permissions: user.role.permissions.map(p => p.key)
+      permissions: user.role.permissions.map(p => p.key),
+      createdAt: user.createdAt,
     }
   });
 };
@@ -75,36 +77,82 @@ exports.forgotPassword = async (req, res) => {
   });
 };
 
-/* ================= RESET PASSWORD ================= */
+/* ================= LOGOUT ================= */
 
-exports.resetPassword = async (req, res) => {
-  const { token, password } = req.body;
+exports.logout = async (req, res) => {
+  await audit({
+    userId: req.user.id,
+    action: "LOGOUT",
+    module: "AUTH",
+    recordId: req.user.id
+  });
 
-  const record = await PasswordReset.findOne({
-    where: {
-      token,
-      used: false,
-      expiresAt: { [Op.gt]: new Date() }
+  res.json({ success: true });
+};
+
+
+
+/* ================= PROFILE ================= */
+
+exports.me = async (req, res) => {
+  const user = await User.findByPk(req.user.id, {
+    attributes: { exclude: ["password"] },
+    include: {
+      model: Role,
+      include: Permission
     }
   });
 
-  if (!record) {
-    return res.status(400).json({ message: "Invalid or expired token" });
+  res.json(user);
+};
+
+exports.updateProfile = async (req, res) => {
+  const allowed = ["name", "phone"];
+  const updates = {};
+
+  allowed.forEach(k => {
+    if (req.body[k] !== undefined) updates[k] = req.body[k];
+  });
+
+  await User.update(updates, { where: { id: req.user.id } });
+
+  await audit({
+    userId: req.user.id,
+    action: "UPDATE_PROFILE",
+    module: "ADMIN",
+    recordId: req.user.id
+  });
+
+  res.json({ success: true });
+};
+
+exports.changePassword = async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  const user = await User.findByPk(req.user.id);
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ message: "Password must be at least 8 characters" });
+  }
+
+  if (!(await bcrypt.compare(oldPassword, user.password))) {
+    return res.status(400).json({ message: "Incorrect current password" });
+  }
+
+  if (await bcrypt.compare(newPassword, user.password)) {
+    return res.status(400).json({ message: "New password must be different from old password" });
   }
 
   await User.update(
-    { password: await bcrypt.hash(password, 10) },
-    { where: { id: record.userId } }
+    { password: await bcrypt.hash(newPassword, 10) },
+    { where: { id: user.id } }
   );
 
-  record.used = true;
-  await record.save();
-
   await audit({
-    userId: record.userId,
-    action: "RESET_PASSWORD",
-    module: "AUTH",
-    recordId: record.userId
+    userId: user.id,
+    action: "CHANGE_PASSWORD",
+    module: "ADMIN",
+    recordId: user.id
   });
 
   res.json({ success: true });

@@ -1,30 +1,55 @@
-// const { DataTypes } = require('sequelize');
-// const sequelize = require('../../config/db');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../../config/db');
 
-// module.exports = sequelize.define('Voucher', {
-//   voucherType: DataTypes.STRING,
-//   referenceType: DataTypes.STRING,
-//   referenceId: DataTypes.INTEGER,
-//   date: DataTypes.DATE,
-// });
+const Voucher = sequelize.define(
+  'Voucher',
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
 
-const { DataTypes } = require("sequelize");
-const sequelize = require("../../config/db");
+    voucherNo: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
 
-const Voucher = sequelize.define("voucher", {
-  voucherNo: { type: DataTypes.STRING, unique: true },
-  date: DataTypes.DATE,
-  type: {
-    type: DataTypes.ENUM("JV", "PV", "RV"),
+    date: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+
+    type: {
+      type: DataTypes.ENUM('JV', 'PV', 'RV'),
+      allowNull: false,
+    },
+
+    narration: {
+      type: DataTypes.TEXT,
+    },
+
+    posted: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+
+    companyId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
   },
-  narration: DataTypes.TEXT,
-  posted: { type: DataTypes.BOOLEAN, defaultValue: false },
-  indexes: [{ fields: ["posted"] }, { fields: ["date"] }],
-  companyId: {
-  type: DataTypes.INTEGER,
-  allowNull: false
-}
+  {
+    tableName: 'vouchers',
+    timestamps: true,
 
-});
+    // ✅ indexes go ONLY here
+    indexes: [
+      { fields: ['voucherNo'] },
+      { fields: ['companyId'] },
+    ],
+  }
+);
 
 module.exports = Voucher;

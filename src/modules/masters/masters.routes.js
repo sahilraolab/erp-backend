@@ -2,63 +2,83 @@ const router = require('express').Router();
 const auth = require('../../core/auth.middleware');
 const ctrl = require('./masters.controller');
 
-const r = (name) => ctrl[name];
+const protect = {
+  create: auth('masters.create'),
+  view: auth('masters.view'),
+  update: auth('masters.update'),
+  delete: auth('masters.delete')
+};
 
-router.post('/projects', auth('masters.create'), r('project').create);
-router.get('/projects', auth('masters.view'), r('project').list);
-router.put('/projects/:id', auth('masters.update'), r('project').update);
-router.delete('/projects/:id', auth('masters.delete'), r('project').remove);
+/* -----------------------------
+ * Companies
+ * ----------------------------- */
+router.post('/companies', protect.create, ctrl.company.create);
+router.get('/companies', protect.view, ctrl.company.list);
+router.get('/companies/:id', protect.view, ctrl.company.getById);
+router.put('/companies/:id', protect.update, ctrl.company.update);
+router.delete('/companies/:id', protect.delete, ctrl.company.remove);
 
-router.post('/materials', auth('masters.create'), r('material').create);
-router.get('/materials', auth('masters.view'), r('material').list);
+/* -----------------------------
+ * Projects
+ * ----------------------------- */
+router.post('/projects', protect.create, ctrl.project.create);
+router.get('/projects', protect.view, ctrl.project.list);
+router.get('/projects/:id', protect.view, ctrl.project.getById);
+router.put('/projects/:id', protect.update, ctrl.project.update);
+router.delete('/projects/:id', protect.delete, ctrl.project.remove);
 
-router.put('/materials/:id', auth('masters.update'), r('material').update);
-router.delete('/materials/:id', auth('masters.update'), r('material').remove);
+/* -----------------------------
+ * Materials
+ * ----------------------------- */
+router.post('/materials', protect.create, ctrl.material.create);
+router.get('/materials', protect.view, ctrl.material.list);
+router.get('/materials/:id', protect.view, ctrl.material.getById);
+router.put('/materials/:id', protect.update, ctrl.material.update);
+router.delete('/materials/:id', protect.delete, ctrl.material.remove);
 
-router.post('/companies', auth('masters.create'), r('company').create);
-router.get('/companies', auth('masters.view'), r('company').list);
-router.put('/companies/:id', auth('masters.update'), r('company').update);
-router.delete('/companies/:id', auth('masters.update'), r('company').remove);
+/* -----------------------------
+ * Suppliers
+ * ----------------------------- */
+router.post('/suppliers', protect.create, ctrl.supplier.create);
+router.get('/suppliers', protect.view, ctrl.supplier.list);
+router.get('/suppliers/:id', protect.view, ctrl.supplier.getById);
+router.put('/suppliers/:id', protect.update, ctrl.supplier.update);
+router.delete('/suppliers/:id', protect.delete, ctrl.supplier.remove);
 
-router.post('/branches', auth('masters.create'), r('branch').create);
-router.get('/branches', auth('masters.view'), r('branch').list);
-router.put('/branches/:id', auth('masters.update'), r('branch').update);
-router.delete('/branches/:id', auth('masters.update'), r('branch').remove);
+/* -----------------------------
+ * UOM
+ * ----------------------------- */
+router.post('/uoms', protect.create, ctrl.uom.create);
+router.get('/uoms', protect.view, ctrl.uom.list);
+router.get('/uoms/:id', protect.view, ctrl.uom.getById);
+router.put('/uoms/:id', protect.update, ctrl.uom.update);
+router.delete('/uoms/:id', protect.delete, ctrl.uom.remove);
 
-router.post('/suppliers', auth('masters.create'), r('supplier').create);
-router.get('/suppliers', auth('masters.view'), r('supplier').list);
+/* -----------------------------
+ * Departments
+ * ----------------------------- */
+router.post('/departments', protect.create, ctrl.department.create);
+router.get('/departments', protect.view, ctrl.department.list);
+router.get('/departments/:id', protect.view, ctrl.department.getById);
+router.put('/departments/:id', protect.update, ctrl.department.update);
+router.delete('/departments/:id', protect.delete, ctrl.department.remove);
 
-router.post('/uoms', auth('masters.create'), r('uom').create);
-router.get('/uoms', auth('masters.view'), r('uom').list);
+/* -----------------------------
+ * Cost Centers
+ * ----------------------------- */
+router.post('/cost-centers', protect.create, ctrl.costCenter.create);
+router.get('/cost-centers', protect.view, ctrl.costCenter.list);
+router.get('/cost-centers/:id', protect.view, ctrl.costCenter.getById);
+router.put('/cost-centers/:id', protect.update, ctrl.costCenter.update);
+router.delete('/cost-centers/:id', protect.delete, ctrl.costCenter.remove);
 
-router.post('/departments', auth('masters.create'), r('department').create);
-router.get('/departments', auth('masters.view'), r('department').list);
-
-router.post('/cost-centers', auth('masters.create'), r('costCenter').create);
-router.get('/cost-centers', auth('masters.view'), r('costCenter').list);
-
-router.post('/taxes', auth('masters.create'), r('tax').create);
-router.get('/taxes', auth('masters.view'), r('tax').list);
-
-// suppliers
-router.put('/suppliers/:id', auth('masters.update'), r('supplier').update);
-router.delete('/suppliers/:id', auth('masters.delete'), r('supplier').remove);
-
-// uoms
-router.put('/uoms/:id', auth('masters.update'), r('uom').update);
-router.delete('/uoms/:id', auth('masters.delete'), r('uom').remove);
-
-// departments
-router.put('/departments/:id', auth('masters.update'), r('department').update);
-router.delete('/departments/:id', auth('masters.delete'), r('department').remove);
-
-// cost centers
-router.put('/cost-centers/:id', auth('masters.update'), r('costCenter').update);
-router.delete('/cost-centers/:id', auth('masters.delete'), r('costCenter').remove);
-
-// taxes
-router.put('/taxes/:id', auth('masters.update'), r('tax').update);
-router.delete('/taxes/:id', auth('masters.delete'), r('tax').remove);
-
+/* -----------------------------
+ * Taxes
+ * ----------------------------- */
+router.post('/taxes', protect.create, ctrl.tax.create);
+router.get('/taxes', protect.view, ctrl.tax.list);
+router.get('/taxes/:id', protect.view, ctrl.tax.getById);
+router.put('/taxes/:id', protect.update, ctrl.tax.update);
+router.delete('/taxes/:id', protect.delete, ctrl.tax.remove);
 
 module.exports = router;

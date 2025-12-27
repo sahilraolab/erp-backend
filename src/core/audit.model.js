@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
+const User = require('../modules/admin/user.model');
 
 const AuditLog = sequelize.define(
   'audit_log',
@@ -34,5 +35,7 @@ const AuditLog = sequelize.define(
     ]
   }
 );
+
+AuditLog.belongsTo(User, { foreignKey: 'userId' });
 
 module.exports = AuditLog;

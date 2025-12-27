@@ -10,48 +10,15 @@ const Permission = require("./permission.model");
 const AuditLog = require("../../core/audit.model");
 const audit = require("../../core/audit");
 
-/* ================= AUTH ================= */
-
-// exports.login = async (req, res) => {
-//   const email = req.body.email?.toLowerCase().trim();
-//   const { password } = req.body;
-
-//   const user = await User.findOne({
-//     where: { email, isActive: true },
-//     include: { model: Role, include: Permission }
-//   });
-
-//   if (!user || !(await bcrypt.compare(password, user.password))) {
-//     return res.status(401).json({ message: "Invalid credentials" });
-//   }
-
-//   const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
-//     expiresIn: "1d"
-//   });
-
-//   await audit({
-//     userId: user.id,
-//     action: "LOGIN",
-//     module: "ADMIN",
-//     recordId: user.id
-//   });
-
-//   res.json({
-//     token,
-//     user: {
-//       id: user.id,
-//       name: user.name,
-//       email: user.email,
-//       role: user.role.name,
-//       permissions: user.role.permissions.map(p => p.key)
-//     }
-//   });
-// };
-
 /* ================= USERS ================= */
 
 exports.createUser = async (req, res) => {
-  const { name, email, password, roleId } = req.body;
+  const { name, email, phone, password, roleId } = req.body;
+
+  if (!phone) {
+    return res.status(400).json({ message: "Phone number is required" });
+  }
+
   const normalizedEmail = email.toLowerCase().trim();
 
   if (await User.findOne({ where: { email: normalizedEmail } })) {
@@ -61,6 +28,7 @@ exports.createUser = async (req, res) => {
   const user = await User.create({
     name,
     email: normalizedEmail,
+    phone,
     password: await bcrypt.hash(password, 10),
     roleId
   });
@@ -88,7 +56,7 @@ exports.updateUser = async (req, res) => {
     return res.status(400).json({ message: "Cannot modify yourself" });
   }
 
-  const allowed = ["name", "isActive", "roleId"];
+  const allowed = ["name", "isActive", "roleId", "phone"];
   const updates = {};
 
   allowed.forEach(k => {
@@ -146,116 +114,17 @@ exports.assignPermissions = async (req, res) => {
   res.json({ success: true });
 };
 
-/* ================= PROFILE ================= */
-
-exports.me = async (req, res) => {
-  res.json(req.user);
-};
-
-exports.updateProfile = async (req, res) => {
-  const allowed = ["name"];
-  const updates = {};
-
-  allowed.forEach(k => {
-    if (req.body[k] !== undefined) updates[k] = req.body[k];
-  });
-
-  await User.update(updates, { where: { id: req.user.id } });
-
-  await audit({
-    userId: req.user.id,
-    action: "UPDATE_PROFILE",
-    module: "ADMIN",
-    recordId: req.user.id
-  });
-
-  res.json({ success: true });
-};
-
-exports.changePassword = async (req, res) => {
-  const { oldPassword, newPassword } = req.body;
-
-  const user = await User.findByPk(req.user.id);
-
-  if (!(await bcrypt.compare(oldPassword, user.password))) {
-    return res.status(400).json({ message: "Incorrect current password" });
-  }
-
-  await User.update(
-    { password: await bcrypt.hash(newPassword, 10) },
-    { where: { id: user.id } }
-  );
-
-  await audit({
-    userId: user.id,
-    action: "CHANGE_PASSWORD",
-    module: "ADMIN",
-    recordId: user.id
-  });
-
-  res.json({ success: true });
-};
-
 /* ================= AUDIT ================= */
 
 exports.getAuditLogs = async (req, res) => {
   const logs = await AuditLog.findAll({
+    include: {
+      model: User,
+      attributes: ["id", "name", "email"]
+    },
     order: [["createdAt", "DESC"]],
     limit: 200
   });
+
   res.json(logs);
 };
-
-/* ================= PASSWORD RESET ================= */
-
-// exports.forgotPassword = async (req, res) => {
-//   const email = req.body.email?.toLowerCase().trim();
-//   const user = await User.findOne({ where: { email } });
-
-//   if (!user) return res.json({ success: true });
-
-//   const token = crypto.randomBytes(32).toString("hex");
-
-//   await PasswordReset.create({
-//     userId: user.id,
-//     token,
-//     expiresAt: new Date(Date.now() + 30 * 60 * 1000)
-//   });
-
-//   res.json({
-//     success: true,
-//     resetToken:
-//       process.env.NODE_ENV !== "production" ? token : undefined
-//   });
-// };
-
-// exports.resetPassword = async (req, res) => {
-//   const record = await PasswordReset.findOne({
-//     where: {
-//       token: req.body.token,
-//       used: false,
-//       expiresAt: { [Op.gt]: new Date() }
-//     }
-//   });
-
-//   if (!record) {
-//     return res.status(400).json({ message: "Invalid or expired token" });
-//   }
-
-//   await User.update(
-//     { password: await bcrypt.hash(req.body.password, 10) },
-//     { where: { id: record.userId } }
-//   );
-
-//   record.used = true;
-//   await record.save();
-
-//   await audit({
-//     userId: record.userId,
-//     action: "RESET_PASSWORD",
-//     module: "ADMIN",
-//     recordId: record.userId
-//   });
-
-//   res.json({ success: true });
-// };

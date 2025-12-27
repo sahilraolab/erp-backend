@@ -2,25 +2,34 @@ require('dotenv').config();
 const bcrypt = require('bcrypt');
 const sequelize = require('../src/config/db');
 
+/* ===============================
+ * Import Admin Models
+ * =============================== */
 const Role = require('../src/modules/admin/role.model');
 const User = require('../src/modules/admin/user.model');
 const Permission = require('../src/modules/admin/permission.model');
 
-// ensure junction model is registered
+// ensure junction table is registered
 require('../src/modules/admin/rolePermission.model');
 
 (async () => {
   try {
-    // ❗ NEVER alter schema in seeds
-    await sequelize.sync();
+    console.log('🌱 Seeding Admin Data...');
 
-    /* ================= PERMISSIONS ================= */
+    // Ensure DB connection
+    await sequelize.authenticate();
 
+    /* ===============================
+     * 1️⃣ Permissions
+     * =============================== */
     const permissions = [
       // admin
-      'admin.users.manage',
+      'admin.create',
+      'admin.update',
+      'admin.view',
+      'admin.delete',
+      'admin.audit',
       'admin.users.view',
-      'admin.roles.manage',
       'admin.roles.view',
       'admin.audit.view',
 
@@ -30,61 +39,117 @@ require('../src/modules/admin/rolePermission.model');
       'masters.view',
       'masters.delete',
 
+      // engineering
+      'engineering.create',
+      'engineering.update',
+      'engineering.approve',
+      'engineering.view',
+
       // purchase
       'purchase.create',
+      'purchase.update',
       'purchase.approve',
+      'purchase.view',
+
+      // inventory
+      'inventory.create',
+      'inventory.approve',
+      'inventory.issue',
+      'inventory.view',
+
+      // site
+      'site.create',
+      'site.update',
+      'site.approve',
+      'site.issue',
+      'site.view',
+
+      // contracts
+      'contracts.create',
+      'contracts.update',
+      'contracts.approve',
+      'contracts.view',
 
       // accounts
+      'accounts.create',
+      'accounts.post',
       'accounts.view',
-      'accounts.post'
+      'accounts.report',
+
+      // workflow
+      'workflow.action',
+      'workflow.view',
+
+      // compliance
+      'mis.view',
+      'tax.view',
+      'statutory.view'
     ];
 
     for (const key of permissions) {
+      const parts = key.split('.');
+
       await Permission.findOrCreate({
         where: { key },
         defaults: {
-          module: key.split('.')[0],
-          action: key.split('.')[1]
+          module: parts[0].toUpperCase(),
+          action: parts[parts.length - 1].toUpperCase(),
+          description: key.replace(/\./g, ' ')
         }
       });
     }
 
-    /* ================= SUPER ADMIN ROLE ================= */
+    console.log('✅ Permissions seeded');
 
+    /* ===============================
+     * 2️⃣ SUPER ADMIN Role
+     * =============================== */
     const [adminRole] = await Role.findOrCreate({
-      where: { name: 'SUPER_ADMIN' }
-    });
-
-    // SUPER_ADMIN always gets ALL permissions
-    const allPermissions = await Permission.findAll();
-    await adminRole.setPermissions(allPermissions);
-
-    /* ================= SUPER ADMIN USER ================= */
-
-    const adminEmail =
-      (process.env.SUPER_ADMIN_EMAIL || 'admin@erp.com')
-        .toLowerCase()
-        .trim();
-
-    const adminPassword =
-      process.env.SUPER_ADMIN_PASSWORD || 'admin@123';
-
-    const hash = await bcrypt.hash(adminPassword, 10);
-
-    await User.findOrCreate({
-      where: { email: adminEmail },
+      where: { name: 'SUPER_ADMIN' },
       defaults: {
-        name: 'Super Admin',
-        email: adminEmail,
-        password: hash,
-        roleId: adminRole.id
+        description: 'System Super Administrator'
       }
     });
 
-    console.log('✅ Super Admin seeded successfully');
+    // Attach all permissions to SUPER_ADMIN
+    const allPermissions = await Permission.findAll();
+    await adminRole.setPermissions(allPermissions);
+
+    console.log('✅ SUPER_ADMIN role configured');
+
+    /* ===============================
+     * 3️⃣ SUPER ADMIN User
+     * =============================== */
+    const email = (process.env.SUPER_ADMIN_EMAIL || 'admin@erp.com')
+      .toLowerCase()
+      .trim();
+
+    const password =
+      process.env.SUPER_ADMIN_PASSWORD || 'admin@123';
+
+    const phone =
+      process.env.SUPER_ADMIN_PHONE || '9999999999';
+
+    const hash = await bcrypt.hash(password, 10);
+
+    await User.findOrCreate({
+      where: { email },
+      defaults: {
+        name: 'Super Admin',
+        email,
+        phone,
+        password: hash,
+        roleId: adminRole.id,
+        isActive: true
+      }
+    });
+
+    console.log('✅ SUPER_ADMIN user seeded');
+
+    console.log('🎉 ADMIN SEEDING COMPLETED SUCCESSFULLY');
     process.exit(0);
   } catch (err) {
-    console.error('❌ Seed failed:', err);
+    console.error('❌ Admin seeding failed:', err);
     process.exit(1);
   }
 })();

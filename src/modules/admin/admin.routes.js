@@ -41,11 +41,6 @@ router.post(
   ctrl.assignPermissions
 );
 
-/* ================= PROFILE ================= */
-router.get("/me", auth(null), ctrl.me);
-router.put("/me", auth(null), ctrl.updateProfile);
-router.put("/me/password", auth(null), ctrl.changePassword);
-
 /* ================= AUDIT ================= */
 router.get(
   "/audit-logs",
