@@ -24,4 +24,11 @@ router.post('/advances', auth('contracts.create'), ctrl.createAdvance);
 // Debit / Credit
 router.post('/dc-notes', auth('contracts.create'), ctrl.createDCNote);
 
+router.put(
+    '/dc-notes/:id/post',
+    auth('contracts.approve'),
+    ctrl.postDCNote
+);
+
+
 module.exports = router;
