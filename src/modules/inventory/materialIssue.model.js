@@ -1,10 +1,10 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
-const GRN = sequelize.define(
-  'grn',
+const MaterialIssue = sequelize.define(
+  'material_issue',
   {
-    grnNo: {
+    issueNo: {
       type: DataTypes.STRING,
       unique: true,
       allowNull: false
@@ -15,39 +15,37 @@ const GRN = sequelize.define(
       allowNull: false
     },
 
-    locationId: {
+    fromLocationId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
 
-    poId: {
+    issuedTo: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
 
-    receivedBy: {
+    issuedBy: {
       type: DataTypes.INTEGER,
       allowNull: false
+    },
+
+    purpose: {
+      type: DataTypes.STRING
     },
 
     status: {
-      type: DataTypes.ENUM('DRAFT', 'QC_PENDING', 'APPROVED'),
+      type: DataTypes.ENUM('DRAFT', 'APPROVED', 'CANCELLED'),
       defaultValue: 'DRAFT'
-    },
-
-    billed: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false
     }
   },
   {
     indexes: [
       { fields: ['projectId'] },
-      { fields: ['locationId'] },
-      { fields: ['poId'] },
+      { fields: ['fromLocationId'] },
       { fields: ['status'] }
     ]
   }
 );
 
-module.exports = GRN;
+module.exports = MaterialIssue;

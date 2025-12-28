@@ -1,32 +1,93 @@
-// const router = require('express').Router();
-
-// router.get('/health', (req, res) => {
-//   res.json({ module: 'site', status: 'ok' });
-// });
-
-// module.exports = router;
-
 const router = require('express').Router();
 const auth = require('../../core/auth.middleware');
 const ctrl = require('./site.controller');
 
-// Site Material
-router.post('/requisitions', auth('site.create'), ctrl.createSiteReq);
-router.put('/requisitions/:id/approve', auth('site.approve'), ctrl.approveSiteReq);
+/* ================= SITE REQUISITION ================= */
 
-// Site GRN
-router.post('/grn', auth('site.create'), ctrl.receiveAtSite);
+router.post(
+  '/requisitions',
+  auth('site.create'),
+  ctrl.createSiteReq
+);
 
-// Stock
-router.post('/stock/update', auth('site.issue'), ctrl.updateSiteStock);
-router.get('/stock', auth('site.view'), ctrl.siteStock);
+router.get(
+  '/requisitions',
+  auth('site.view'),
+  ctrl.listSiteReqs
+);
 
-// Transfer
-router.post('/transfer', auth('site.create'), ctrl.transferMaterial);
+router.put(
+  '/requisitions/:id/approve',
+  auth('site.approve'),
+  ctrl.approveSiteReq
+);
 
-// Reports
-router.post('/dpr', auth('site.create'), ctrl.createDPR);
-router.post('/wpr', auth('site.create'), ctrl.createWPR);
-router.post('/muster', auth('site.create'), ctrl.createMuster);
+/* ================= SITE GRN ================= */
+
+router.post(
+  '/grn',
+  auth('site.create'),
+  ctrl.receiveAtSite
+);
+
+router.get(
+  '/grn',
+  auth('site.view'),
+  ctrl.listSiteGRN
+);
+
+router.put(
+  '/grn/:id/approve',
+  auth('site.approve'),
+  ctrl.approveSiteGRN
+);
+
+/* ================= SITE STOCK ================= */
+
+router.get(
+  '/stock',
+  auth('site.view'),
+  ctrl.siteStock
+);
+
+/* ================= SITE ↔ INVENTORY / SITE TRANSFER ================= */
+
+router.post(
+  '/transfers',
+  auth('site.create'),
+  ctrl.createTransfer
+);
+
+router.get(
+  '/transfers',
+  auth('site.view'),
+  ctrl.listTransfers
+);
+
+router.put(
+  '/transfers/:id/approve',
+  auth('site.approve'),
+  ctrl.approveTransfer
+);
+
+/* ================= REPORTS ================= */
+
+router.post(
+  '/dpr',
+  auth('site.create'),
+  ctrl.createDPR
+);
+
+router.post(
+  '/wpr',
+  auth('site.create'),
+  ctrl.createWPR
+);
+
+router.post(
+  '/muster',
+  auth('site.create'),
+  ctrl.createMuster
+);
 
 module.exports = router;

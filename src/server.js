@@ -42,6 +42,9 @@ require('./modules/admin/rolePermission.model');
 require('./modules/masters/masters.associations');
 require('./modules/engineering/engineering.associations');
 require('./modules/purchase/purchase.associations');
+require('./modules/inventory/inventory.associations');
+require('./modules/site/site.associations');
+
 
 const PORT = process.env.PORT || 3000;
 

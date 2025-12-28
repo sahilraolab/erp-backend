@@ -1,5 +1,5 @@
 require('dotenv').config();
-const sequelize = require('../src/config/db');
+const sequelize = require('./seed.bootstrap');
 
 /* ===============================
  * Import Models
@@ -28,7 +28,6 @@ async function upsert(Model, where, data) {
   try {
     console.log('🌱 Seeding Master Data...');
 
-    await sequelize.authenticate();
 
     /* ===============================
      * 1️⃣ UOM (Manual codes)

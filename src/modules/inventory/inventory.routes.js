@@ -10,5 +10,11 @@ router.put('/grn/:id/approve', auth('inventory.approve'), ctrl.approveGRN);
 router.post('/issue', auth('inventory.issue'), ctrl.issueMaterial);
 router.get('/stock', auth('inventory.view'), ctrl.getStock);
 router.get('/ledger', auth('inventory.view'), ctrl.getLedger);
+router.post(
+  '/transfer',
+  auth('inventory.transfer'),
+  ctrl.transferStock
+);
+
 
 module.exports = router;

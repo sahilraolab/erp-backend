@@ -1,6 +1,6 @@
 require('dotenv').config();
 const bcrypt = require('bcrypt');
-const sequelize = require('../src/config/db');
+const sequelize = require('./seed.bootstrap');
 
 /* ===============================
  * Import Admin Models
@@ -15,9 +15,6 @@ require('../src/modules/admin/rolePermission.model');
 (async () => {
   try {
     console.log('🌱 Seeding Admin Data...');
-
-    // Ensure DB connection
-    await sequelize.authenticate();
 
     /* ===============================
      * 1️⃣ Permissions
@@ -56,6 +53,9 @@ require('../src/modules/admin/rolePermission.model');
       'inventory.approve',
       'inventory.issue',
       'inventory.view',
+      'inventory.transfer',
+      'inventory.qc',
+      'inventory.approve',
 
       // site
       'site.create',
@@ -94,7 +94,7 @@ require('../src/modules/admin/rolePermission.model');
         defaults: {
           module: parts[0].toUpperCase(),
           action: parts[parts.length - 1].toUpperCase(),
-          description: key.replace(/\./g, ' ')
+          description: `${parts[0]} ${parts.slice(1).join(' ')}`
         }
       });
     }

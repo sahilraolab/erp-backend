@@ -1,27 +1,30 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
-const SiteStock = sequelize.define(
-  'site_stock',
+const StockTransferLine = sequelize.define(
+  'stock_transfer_line',
   {
-    siteId: {
+    transferId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
+
     materialId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
-    quantity: {
+
+    transferQty: {
       type: DataTypes.DECIMAL(14, 3),
-      defaultValue: 0
+      allowNull: false
     }
   },
   {
     indexes: [
-      { unique: true, fields: ['siteId', 'materialId'] }
+      { fields: ['transferId'] },
+      { fields: ['materialId'] }
     ]
   }
 );
 
-module.exports = SiteStock;
+module.exports = StockTransferLine;

@@ -1,44 +1,27 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
-const StockLedger = sequelize.define(
-  'stock_ledger',
+const SiteStockLedger = sequelize.define(
+  'site_stock_ledger',
   {
-    projectId: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-
-    locationId: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-
-    materialId: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-
+    siteId: DataTypes.INTEGER,
+    materialId: DataTypes.INTEGER,
     refType: {
-      type: DataTypes.ENUM('GRN', 'ISSUE', 'TRANSFER'),
+      type: DataTypes.ENUM('SITE_GRN', 'ISSUE', 'TRANSFER'),
       allowNull: false
     },
-
     refId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
-
     qtyIn: {
       type: DataTypes.DECIMAL(14, 3),
       defaultValue: 0
     },
-
     qtyOut: {
       type: DataTypes.DECIMAL(14, 3),
       defaultValue: 0
     },
-
     balanceQty: {
       type: DataTypes.DECIMAL(14, 3),
       allowNull: false
@@ -46,11 +29,10 @@ const StockLedger = sequelize.define(
   },
   {
     indexes: [
-      { fields: ['materialId'] },
-      { fields: ['projectId', 'locationId'] },
+      { fields: ['siteId', 'materialId'] },
       { fields: ['refType', 'refId'] }
     ]
   }
 );
 
-module.exports = StockLedger;
+module.exports = SiteStockLedger;

@@ -1,10 +1,10 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
-const GRN = sequelize.define(
-  'grn',
+const StockTransfer = sequelize.define(
+  'stock_transfer',
   {
-    grnNo: {
+    transferNo: {
       type: DataTypes.STRING,
       unique: true,
       allowNull: false
@@ -15,39 +15,38 @@ const GRN = sequelize.define(
       allowNull: false
     },
 
-    locationId: {
+    fromLocationId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
 
-    poId: {
+    toLocationId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
 
-    receivedBy: {
+    requestedBy: {
       type: DataTypes.INTEGER,
       allowNull: false
+    },
+
+    approvedBy: {
+      type: DataTypes.INTEGER
     },
 
     status: {
-      type: DataTypes.ENUM('DRAFT', 'QC_PENDING', 'APPROVED'),
+      type: DataTypes.ENUM('DRAFT', 'APPROVED', 'CANCELLED'),
       defaultValue: 'DRAFT'
-    },
-
-    billed: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false
     }
   },
   {
     indexes: [
       { fields: ['projectId'] },
-      { fields: ['locationId'] },
-      { fields: ['poId'] },
+      { fields: ['fromLocationId'] },
+      { fields: ['toLocationId'] },
       { fields: ['status'] }
     ]
   }
 );
 
-module.exports = GRN;
+module.exports = StockTransfer;

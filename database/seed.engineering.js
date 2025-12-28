@@ -1,5 +1,5 @@
 require('dotenv').config();
-const sequelize = require('../src/config/db');
+const sequelize = require('./seed.bootstrap');
 
 const Project = require('../src/modules/masters/project.model');
 const Budget = require('../src/modules/engineering/budget.model');

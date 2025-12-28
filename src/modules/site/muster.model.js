@@ -1,13 +1,3 @@
-// const { DataTypes } = require('sequelize');
-// const sequelize = require('../../config/db');
-
-// module.exports = sequelize.define('MusterRoll', {
-//   projectId: DataTypes.INTEGER,
-//   labourType: DataTypes.STRING,
-//   count: DataTypes.INTEGER,
-//   date: DataTypes.DATEONLY,
-// });
-
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 

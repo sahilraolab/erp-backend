@@ -1,27 +1,30 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
-const SiteStock = sequelize.define(
-  'site_stock',
+const MaterialIssueLine = sequelize.define(
+  'material_issue_line',
   {
-    siteId: {
+    issueId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
+
     materialId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
-    quantity: {
+
+    issuedQty: {
       type: DataTypes.DECIMAL(14, 3),
-      defaultValue: 0
+      allowNull: false
     }
   },
   {
     indexes: [
-      { unique: true, fields: ['siteId', 'materialId'] }
+      { fields: ['issueId'] },
+      { fields: ['materialId'] }
     ]
   }
 );
 
-module.exports = SiteStock;
+module.exports = MaterialIssueLine;

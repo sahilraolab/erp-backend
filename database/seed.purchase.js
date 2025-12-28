@@ -1,5 +1,5 @@
 require('dotenv').config();
-const sequelize = require('../src/config/db');
+const sequelize = require('./seed.bootstrap');
 
 const Project = require('../src/modules/masters/project.model');
 const Supplier = require('../src/modules/masters/supplier.model');
@@ -11,6 +11,9 @@ const PO = require('../src/modules/purchase/po.model');
 
 const Budget = require('../src/modules/engineering/budget.model');
 const Estimate = require('../src/modules/engineering/estimate.model');
+
+const POLine = require('../src/modules/purchase/poLine.model');
+const Material = require('../src/modules/masters/material.model');
 
 
 const genNo = (p) => `${p}-${Date.now()}`;
@@ -81,17 +84,26 @@ const genNo = (p) => `${p}-${Date.now()}`;
         });
 
         /* ================= PO ================= */
-        await PO.create({
+        const po = await PO.create({
             poNo: genNo('PO'),
-
-            projectId: project.id,     // ✅ REQUIRED
-            budgetId: budget.id,       // ✅ REQUIRED
-            estimateId: estimate.id,   // ✅ REQUIRED
-
+            projectId: project.id,
+            budgetId: budget.id,
+            estimateId: estimate.id,
             quotationId: quotation.id,
             supplierId: supplier.id,
             totalAmount: quotation.totalAmount,
-            status: 'CREATED'
+            status: 'APPROVED'
+        });
+
+        const material = await Material.findOne();
+        if (!material) throw new Error('Material not found');
+
+        await POLine.create({
+            purchaseOrderId: po.id,     // 🔑 CRITICAL
+            materialId: material.id,
+            qty: 100,
+            rate: 500,
+            amount: 50000
         });
 
         console.log('✅ Purchase seed completed');
