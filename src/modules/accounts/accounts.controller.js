@@ -8,24 +8,44 @@ const { ensureApproved } = require('../workflow/workflow.helper');
 /* ================= COA ================= */
 
 exports.createAccount = async (req, res) => {
-  const acc = await Account.create(req.body);
-  res.json(acc);
+  res.json(await Account.create(req.body));
 };
 
 /* ================= VOUCHERS ================= */
 
 exports.createVoucher = async (req, res) => {
-  const voucher = await Voucher.create(req.body);
+  const { lines, ...header } = req.body;
+
+  let totalDr = 0;
+  let totalCr = 0;
+
+  for (const l of lines) {
+    totalDr += Number(l.debit || 0);
+    totalCr += Number(l.credit || 0);
+  }
+
+  if (totalDr !== totalCr) {
+    throw new Error('Voucher is not balanced');
+  }
+
+  const voucher = await Voucher.create(header);
+
+  for (const l of lines) {
+    await Line.create({
+      voucherId: voucher.id,
+      ...l,
+    });
+  }
 
   await workflow.start({
     module: 'ACCOUNTS',
     entity: 'VOUCHER',
-    recordId: voucher.id
+    recordId: voucher.id,
   });
 
   res.json({
     voucher,
-    message: 'Voucher sent for approval'
+    message: 'Voucher created and sent for approval',
   });
 };
 
@@ -41,7 +61,7 @@ exports.postVoucher = async (req, res) => {
     userId: req.user.id,
     action: 'POST_VOUCHER',
     module: 'ACCOUNTS',
-    recordId: req.params.id
+    recordId: req.params.id,
   });
 
   res.json({ success: true });
@@ -51,13 +71,18 @@ exports.postVoucher = async (req, res) => {
 
 exports.trialBalance = async (req, res) => {
   const rows = await Line.findAll({
-    include: Account
+    include: {
+      model: Voucher,
+      where: { posted: true },
+    },
+    includeIgnoreAttributes: false,
   });
 
   const tb = {};
+
   for (const r of rows) {
-    const acc = r.account.name;
-    tb[acc] = (tb[acc] || 0) + r.debit - r.credit;
+    const acc = r.accountId;
+    tb[acc] = (tb[acc] || 0) + Number(r.debit) - Number(r.credit);
   }
 
   res.json(tb);

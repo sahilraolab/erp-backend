@@ -2,14 +2,8 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
 const Voucher = sequelize.define(
-  'Voucher',
+  'voucher',
   {
-    id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
-    },
-
     voucherNo: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -17,7 +11,7 @@ const Voucher = sequelize.define(
     },
 
     date: {
-      type: DataTypes.DATE,
+      type: DataTypes.DATEONLY,
       allowNull: false,
     },
 
@@ -26,9 +20,7 @@ const Voucher = sequelize.define(
       allowNull: false,
     },
 
-    narration: {
-      type: DataTypes.TEXT,
-    },
+    narration: DataTypes.TEXT,
 
     posted: {
       type: DataTypes.BOOLEAN,
@@ -43,11 +35,11 @@ const Voucher = sequelize.define(
   {
     tableName: 'vouchers',
     timestamps: true,
-
-    // ✅ indexes go ONLY here
     indexes: [
       { fields: ['voucherNo'] },
       { fields: ['companyId'] },
+      { fields: ['date'] },
+      { fields: ['posted'] },
     ],
   }
 );

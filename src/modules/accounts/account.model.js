@@ -1,18 +1,10 @@
-// const { DataTypes } = require('sequelize');
-// const sequelize = require('../../config/db');
-
-// module.exports = sequelize.define('Account', {
-//   code: DataTypes.STRING,
-//   name: DataTypes.STRING,
-//   type: DataTypes.ENUM('ASSET','LIABILITY','INCOME','EXPENSE'),
-// });
-
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
 const Account = sequelize.define('account', {
-  name: DataTypes.STRING,
-  code: { type: DataTypes.STRING, unique: true },
+  name: { type: DataTypes.STRING, allowNull: false },
+  code: { type: DataTypes.STRING, unique: true, allowNull: false },
+
   type: {
     type: DataTypes.ENUM(
       'ASSET',
@@ -20,14 +12,21 @@ const Account = sequelize.define('account', {
       'INCOME',
       'EXPENSE',
       'EQUITY'
-    )
+    ),
+    allowNull: false
   },
-  parentId: DataTypes.INTEGER,
-  companyId: {
-  type: DataTypes.INTEGER,
-  allowNull: false
-}
 
+  parentId: DataTypes.INTEGER,
+
+  companyId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+
+  isActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  }
 });
 
 module.exports = Account;

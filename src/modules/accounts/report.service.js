@@ -3,28 +3,53 @@ const Account = require('./account.model');
 const Voucher = require('./voucher.model');
 const Line = require('./voucherLine.model');
 
-const postedOnly = {
-  include: {
-    model: Voucher,
-    where: { posted: true }
-  }
+/* ================= LEDGER ================= */
+
+exports.ledger = async ({ accountId, contractorId, from, to }) => {
+  return Line.findAll({
+    where: {
+      ...(accountId && { accountId }),
+      ...(contractorId && { contractorId }),
+    },
+    include: [
+      {
+        model: Voucher,
+        where: {
+          posted: true,
+          ...(from && to && {
+            date: { [Op.between]: [from, to] },
+          }),
+        },
+      },
+      Account,
+    ],
+    order: [['id', 'ASC']],
+  });
 };
 
-// Helper
-const sumLines = (lines) =>
-  lines.reduce((t, l) => t + l.debit - l.credit, 0);
+/* ================= PROFIT & LOSS ================= */
 
-exports.profitAndLoss = async () => {
+exports.profitAndLoss = async ({ from, to }) => {
   const lines = await Line.findAll({
-    include: Account,
-    ...postedOnly
+    include: [
+      Account,
+      {
+        model: Voucher,
+        where: {
+          posted: true,
+          ...(from && to && {
+            date: { [Op.between]: [from, to] },
+          }),
+        },
+      },
+    ],
   });
 
   const pl = { income: {}, expense: {}, netProfit: 0 };
 
   for (const l of lines) {
     const type = l.account.type;
-    const amount = l.credit - l.debit;
+    const amount = Number(l.credit) - Number(l.debit);
 
     if (type === 'INCOME') {
       pl.income[l.account.name] =
@@ -44,38 +69,60 @@ exports.profitAndLoss = async () => {
   return pl;
 };
 
-exports.balanceSheet = async () => {
+/* ================= BALANCE SHEET ================= */
+
+exports.balanceSheet = async ({ asOn }) => {
   const lines = await Line.findAll({
-    include: Account,
-    ...postedOnly
+    include: [
+      Account,
+      {
+        model: Voucher,
+        where: {
+          posted: true,
+          ...(asOn && { date: { [Op.lte]: asOn } }),
+        },
+      },
+    ],
   });
 
   const bs = { assets: {}, liabilities: {}, equity: {} };
 
   for (const l of lines) {
+    const bal = Number(l.debit) - Number(l.credit);
     const acc = l.account;
-    const bal = l.debit - l.credit;
 
     if (acc.type === 'ASSET') {
       bs.assets[acc.name] = (bs.assets[acc.name] || 0) + bal;
     }
 
     if (acc.type === 'LIABILITY') {
-      bs.liabilities[acc.name] = (bs.liabilities[acc.name] || 0) + -bal;
+      bs.liabilities[acc.name] = (bs.liabilities[acc.name] || 0) - bal;
     }
 
     if (acc.type === 'EQUITY') {
-      bs.equity[acc.name] = (bs.equity[acc.name] || 0) + -bal;
+      bs.equity[acc.name] = (bs.equity[acc.name] || 0) - bal;
     }
   }
 
   return bs;
 };
 
-exports.cashFlow = async () => {
+/* ================= CASH FLOW ================= */
+
+exports.cashFlow = async ({ from, to }) => {
   const lines = await Line.findAll({
-    include: Account,
-    ...postedOnly
+    include: [
+      Account,
+      {
+        model: Voucher,
+        where: {
+          posted: true,
+          ...(from && to && {
+            date: { [Op.between]: [from, to] },
+          }),
+        },
+      },
+    ],
   });
 
   let inflow = 0;
@@ -83,14 +130,14 @@ exports.cashFlow = async () => {
 
   for (const l of lines) {
     if (['Cash', 'Bank'].includes(l.account.name)) {
-      inflow += l.debit;
-      outflow += l.credit;
+      inflow += Number(l.debit);
+      outflow += Number(l.credit);
     }
   }
 
   return {
     inflow,
     outflow,
-    netCash: inflow - outflow
+    netCash: inflow - outflow,
   };
 };
