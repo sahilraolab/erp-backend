@@ -5,25 +5,34 @@ const Line = require('./voucherLine.model');
 
 /* ================= LEDGER ================= */
 
-exports.ledger = async ({ accountId, contractorId, from, to }) => {
-  return Line.findAll({
-    where: {
-      ...(accountId && { accountId }),
-      ...(contractorId && { contractorId }),
-    },
+exports.ledger = async ({ accountId, from, to }) => {
+  const lines = await Line.findAll({
+    where: { accountId },
     include: [
       {
         model: Voucher,
         where: {
           posted: true,
           ...(from && to && {
-            date: { [Op.between]: [from, to] },
-          }),
-        },
-      },
-      Account,
+            date: { [Op.between]: [from, to] }
+          })
+        }
+      }
     ],
-    order: [['id', 'ASC']],
+    order: [[Voucher, 'date', 'ASC'], ['id', 'ASC']]
+  });
+
+  let balance = 0;
+
+  return lines.map(l => {
+    balance += Number(l.debit) - Number(l.credit);
+    return {
+      date: l.voucher.date,
+      narration: l.voucher.narration,
+      debit: l.debit,
+      credit: l.credit,
+      balance
+    };
   });
 };
 

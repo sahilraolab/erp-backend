@@ -6,9 +6,11 @@ const MISSnapshot = sequelize.define('mis_snapshot', {
     type: DataTypes.DATEONLY,
     allowNull: false
   },
-  projectId: DataTypes.INTEGER,
-  siteId: DataTypes.INTEGER,
-  role: DataTypes.STRING, // ADMIN, PM, STORE, ACCOUNTS
+
+  projectId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
 
   // Finance
   totalPurchase: DataTypes.FLOAT,
@@ -30,9 +32,9 @@ const MISSnapshot = sequelize.define('mis_snapshot', {
   wprCount: DataTypes.INTEGER
 }, {
   indexes: [
-    { fields: ['date'] },
+    { unique: true, fields: ['date', 'projectId'] },
     { fields: ['projectId'] },
-    { fields: ['role'] }
+    { fields: ['date'] }
   ]
 });
 

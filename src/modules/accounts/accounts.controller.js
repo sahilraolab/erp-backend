@@ -70,19 +70,30 @@ exports.postVoucher = async (req, res) => {
 /* ================= TRIAL BALANCE ================= */
 
 exports.trialBalance = async (req, res) => {
-  const rows = await Line.findAll({
-    include: {
-      model: Voucher,
-      where: { posted: true },
-    },
-    includeIgnoreAttributes: false,
+  const lines = await Line.findAll({
+    include: [
+      {
+        model: Voucher,
+        where: { posted: true }
+      },
+      Account
+    ]
   });
 
   const tb = {};
 
-  for (const r of rows) {
-    const acc = r.accountId;
-    tb[acc] = (tb[acc] || 0) + Number(r.debit) - Number(r.credit);
+  for (const l of lines) {
+    const acc = l.account;
+    if (!tb[acc.code]) {
+      tb[acc.code] = {
+        name: acc.name,
+        debit: 0,
+        credit: 0
+      };
+    }
+
+    tb[acc.code].debit += Number(l.debit);
+    tb[acc.code].credit += Number(l.credit);
   }
 
   res.json(tb);

@@ -44,6 +44,8 @@ require('./modules/engineering/engineering.associations');
 require('./modules/purchase/purchase.associations');
 require('./modules/inventory/inventory.associations');
 require('./modules/site/site.associations');
+require('./modules/contracts/contracts.associations');
+require('./modules/accounts/accounts.associations');
 
 
 const PORT = process.env.PORT || 3000;

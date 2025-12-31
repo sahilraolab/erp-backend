@@ -1,20 +1,3 @@
-// const Approval = require('./approval.model');
-
-// exports.requestApproval = async (module, recordId) => {
-//   return Approval.create({
-//     module,
-//     recordId,
-//     status: 'PENDING'
-//   });
-// };
-
-// exports.approve = async (id, userId) => {
-//   return Approval.update(
-//     { status: 'APPROVED', approvedBy: userId },
-//     { where: { id } }
-//   );
-// };
-
 const Workflow = require('./workflow.model');
 const Step = require('./workflowStep.model');
 const Instance = require('./workflowInstance.model');
@@ -25,7 +8,14 @@ exports.start = async ({ module, entity, recordId }) => {
     where: { module, entity, isActive: true }
   });
 
-  if (!workflow) return null;
+  if (!workflow) {
+    // Explicitly allow auto-approve if workflow not configured
+    return Instance.create({
+      workflowId: null,
+      recordId,
+      status: 'APPROVED'
+    });
+  }
 
   const steps = await Step.findAll({
     where: { workflowId: workflow.id },
@@ -41,7 +31,25 @@ exports.start = async ({ module, entity, recordId }) => {
 
 exports.act = async ({ instanceId, userId, action, remarks }) => {
   const instance = await Instance.findByPk(instanceId);
-  if (!instance || instance.status !== 'PENDING') return;
+  if (!instance || instance.status !== 'PENDING') {
+    throw new Error('Invalid workflow instance');
+  }
+
+  const step = await Step.findOne({
+    where: {
+      workflowId: instance.workflowId,
+      stepOrder: instance.currentStep
+    }
+  });
+
+  if (!step) {
+    throw new Error('Workflow step not found');
+  }
+
+  // 🔐 ROLE CHECK (CRITICAL)
+  if (step.roleId && step.roleId !== user.roleId) {
+    throw new Error('You are not authorized to act on this step');
+  }
 
   await Action.create({
     instanceId,

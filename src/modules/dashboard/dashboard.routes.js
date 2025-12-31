@@ -1,8 +1,17 @@
 const router = require('express').Router();
-const service = require('./dashboard.service');
+const auth = require('../../core/auth.middleware');
+const ctrl = require('./dashboard.service');
 
-router.get('/summary', async (req, res) => {
-  res.json(await service.projectSummary());
-});
+router.get(
+  '/summary',
+  auth,
+  async (req, res) => {
+    const data = await ctrl.summary({
+      role: req.user.role?.name || 'ADMIN',
+      projectId: req.query.projectId || null
+    });
+    res.json(data);
+  }
+);
 
 module.exports = router;
