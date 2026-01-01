@@ -8,7 +8,9 @@ const Budget = require('./budget.model');
 /* ================= BUDGET ================= */
 
 exports.createBudget = async (req, res) => {
-  const budget = await service.createBudget(req.body);
+  const budget = await withTx(t =>
+    service.createBudget(req.body, t)
+  );
 
   await audit({
     userId: req.user.id,
@@ -21,7 +23,9 @@ exports.createBudget = async (req, res) => {
 };
 
 exports.approveBudget = async (req, res) => {
-  await service.approveBudget(req.params.id);
+  await withTx(t =>
+    service.approveBudget(req.params.id, t)
+  );
 
   await audit({
     userId: req.user.id,
@@ -36,9 +40,9 @@ exports.approveBudget = async (req, res) => {
 /* ================= ESTIMATE ================= */
 
 exports.createEstimate = async (req, res) => {
-  const estimate = await withTx(async (t) => {
-    return service.createEstimate(req.body, t);
-  });
+  const estimate = await withTx(t =>
+    service.createEstimate(req.body, t)
+  );
 
   await audit({
     userId: req.user.id,
@@ -51,7 +55,9 @@ exports.createEstimate = async (req, res) => {
 };
 
 exports.addEstimateVersion = async (req, res) => {
-  const version = await service.addEstimateVersion(req.body);
+  const version = await withTx(t =>
+    service.addEstimateVersion(req.body, t)
+  );
 
   await audit({
     userId: req.user.id,
@@ -64,7 +70,9 @@ exports.addEstimateVersion = async (req, res) => {
 };
 
 exports.approveEstimate = async (req, res) => {
-  await service.approveEstimate(req.params.id);
+  await withTx(t =>
+    service.approveEstimate(req.params.id, t)
+  );
 
   await audit({
     userId: req.user.id,
@@ -79,7 +87,9 @@ exports.approveEstimate = async (req, res) => {
 /* ================= BBS ================= */
 
 exports.createBBS = async (req, res) => {
-  const bbs = await service.createBBS(req.body);
+  const bbs = await withTx(t =>
+    service.createBBS(req.body, t)
+  );
 
   await audit({
     userId: req.user.id,
@@ -91,10 +101,27 @@ exports.createBBS = async (req, res) => {
   res.json(bbs);
 };
 
+exports.approveBBS = async (req, res) => {
+  await withTx(t =>
+    service.approveBBS(req.params.id, t)
+  );
+
+  await audit({
+    userId: req.user.id,
+    action: 'APPROVE_BBS',
+    module: 'ENGINEERING',
+    recordId: req.params.id
+  });
+
+  res.json({ success: true });
+};
+
 /* ================= DRAWINGS ================= */
 
 exports.createDrawing = async (req, res) => {
-  const drawing = await service.createDrawing(req.body);
+  const drawing = await withTx(t =>
+    service.createDrawing(req.body, t)
+  );
 
   await audit({
     userId: req.user.id,
@@ -107,7 +134,9 @@ exports.createDrawing = async (req, res) => {
 };
 
 exports.reviseDrawing = async (req, res) => {
-  const revision = await service.reviseDrawing(req.body);
+  const revision = await withTx(t =>
+    service.reviseDrawing(req.body, t)
+  );
 
   await audit({
     userId: req.user.id,
@@ -120,7 +149,9 @@ exports.reviseDrawing = async (req, res) => {
 };
 
 exports.approveDrawing = async (req, res) => {
-  await service.approveDrawing(req.params.id);
+  await withTx(t =>
+    service.approveDrawing(req.params.id, t)
+  );
 
   await audit({
     userId: req.user.id,
@@ -135,7 +166,9 @@ exports.approveDrawing = async (req, res) => {
 /* ================= COMPLIANCE ================= */
 
 exports.addCompliance = async (req, res) => {
-  const compliance = await service.addCompliance(req.body);
+  const compliance = await withTx(t =>
+    service.addCompliance(req.body, t)
+  );
 
   await audit({
     userId: req.user.id,
@@ -147,50 +180,34 @@ exports.addCompliance = async (req, res) => {
   res.json(compliance);
 };
 
+/* ================= READ ================= */
+
 exports.listBBS = async (req, res) => {
   const { projectId } = req.query;
-
   if (!projectId) {
-    return res.status(400).json({
-      message: 'projectId query parameter is required'
-    });
+    return res.status(400).json({ message: 'projectId required' });
   }
 
-  const bbs = await BBS.findAll({
-    where: { projectId }
-  });
-
-  res.json(bbs);
+  res.json(
+    await BBS.findAll({ where: { projectId } })
+  );
 };
 
 exports.listEstimates = async (req, res) => {
   const { projectId } = req.query;
-
   if (!projectId) {
-    return res.status(400).json({
-      message: 'projectId query parameter is required'
-    });
+    return res.status(400).json({ message: 'projectId required' });
   }
 
-  const estimates = await Estimate.findAll({
-    where: { projectId }
-  });
-
-  res.json(estimates);
+  res.json(
+    await Estimate.findAll({ where: { projectId } })
+  );
 };
 
 exports.getBudget = async (req, res) => {
   const { projectId } = req.params;
 
-  if (!projectId) {
-    return res.status(400).json({
-      message: 'projectId param is required'
-    });
-  }
-
-  const budget = await Budget.findOne({
-    where: { projectId }
-  });
-
-  res.json(budget);
+  res.json(
+    await Budget.findOne({ where: { projectId } })
+  );
 };

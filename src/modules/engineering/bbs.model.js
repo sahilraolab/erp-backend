@@ -1,49 +1,67 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
-const BBS = sequelize.define('bbs', {
-  projectId: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
+const BBS = sequelize.define(
+  'bbs',
+  {
+    projectId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
 
-  code: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
+    estimateId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
 
-  description: {
-    type: DataTypes.STRING
-  },
+    code: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
 
-  quantity: {
-    type: DataTypes.DECIMAL(12, 3),
-    allowNull: false
-  },
+    description: DataTypes.STRING,
 
-  uomId: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
+    quantity: {
+      type: DataTypes.DECIMAL(12, 3),
+      allowNull: false
+    },
 
-  rate: {
-    type: DataTypes.DECIMAL(12, 2),
-    allowNull: false
-  },
+    executedQty: {
+      type: DataTypes.DECIMAL(12, 3),
+      defaultValue: 0
+    },
 
-  amount: {
-    type: DataTypes.DECIMAL(14, 2)
-  },
+    uomId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
 
-  status: {
-    type: DataTypes.ENUM('DRAFT', 'APPROVED'),
-    defaultValue: 'DRAFT'
+    rate: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false
+    },
+
+    amount: {
+      type: DataTypes.DECIMAL(14, 2)
+    },
+
+    status: {
+      type: DataTypes.ENUM('DRAFT', 'APPROVED', 'LOCKED'),
+      defaultValue: 'DRAFT'
+    }
+  },
+  {
+    indexes: [
+      { fields: ['projectId'] },
+      { fields: ['estimateId'] },
+      { fields: ['status'] }
+    ]
   }
-});
+);
 
-/* ✅ MODEL-LEVEL HOOK (THIS IS THE RIGHT PLACE) */
+/* 🔒 SAFE AMOUNT CALCULATION */
 BBS.beforeSave((bbs) => {
-  if (bbs.quantity != null && bbs.rate != null) {
+  if (bbs.changed('quantity') || bbs.changed('rate')) {
     bbs.amount = Number(bbs.quantity) * Number(bbs.rate);
   }
 });

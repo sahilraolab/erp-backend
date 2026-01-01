@@ -2,33 +2,30 @@ const router = require('express').Router();
 const auth = require('../../core/auth.middleware');
 const ctrl = require('./engineering.controller');
 
-// Budget
+/* ================= BUDGET ================= */
 router.post('/budget', auth('engineering.create'), ctrl.createBudget);
 router.put('/budget/:id/approve', auth('engineering.approve'), ctrl.approveBudget);
 
-// Estimate
+/* ================= ESTIMATE ================= */
 router.post('/estimate', auth('engineering.create'), ctrl.createEstimate);
 router.post('/estimate/version', auth('engineering.update'), ctrl.addEstimateVersion);
-router.put(
-  '/estimate/:id/approve',
-  auth('engineering.approve'),
-  ctrl.approveEstimate
-);
+router.put('/estimate/:id/approve', auth('engineering.approve'), ctrl.approveEstimate);
 
-// BBS
+/* ================= BBS ================= */
 router.post('/bbs', auth('engineering.create'), ctrl.createBBS);
+router.put('/bbs/:id/approve', auth('engineering.approve'), ctrl.approveBBS);
 
-// Drawings
+/* ================= DRAWINGS ================= */
 router.post('/drawings', auth('engineering.create'), ctrl.createDrawing);
 router.post('/drawings/revision', auth('engineering.update'), ctrl.reviseDrawing);
 router.put('/drawings/:id/approve', auth('engineering.approve'), ctrl.approveDrawing);
 
-// Compliance
+/* ================= COMPLIANCE ================= */
 router.post('/compliance', auth('engineering.create'), ctrl.addCompliance);
 
+/* ================= READ ================= */
 router.get('/bbs', auth('engineering.view'), ctrl.listBBS);
 router.get('/estimate', auth('engineering.view'), ctrl.listEstimates);
 router.get('/budget/:projectId', auth('engineering.view'), ctrl.getBudget);
-
 
 module.exports = router;

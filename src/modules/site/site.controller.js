@@ -20,6 +20,7 @@ const Muster = require('./muster.model');
 /* Services */
 const siteService = require('./site.service');
 const inventoryService = require('../inventory/inventory.service');
+const engineeringService = require('../engineering/engineering.service');
 
 const genNo = (p) => `${p}-${Date.now()}`;
 
@@ -282,7 +283,31 @@ exports.approveTransfer = async (req, res) => {
 /* ================= REPORTS ================= */
 
 exports.createDPR = async (req, res) => {
-  const dpr = await DPR.create(req.body);
+  const { lines = [], ...header } = req.body;
+
+  if (!lines.length) {
+    throw new Error('DPR must have at least one line');
+  }
+
+  const dpr = await withTx(async (t) => {
+    const dpr = await DPR.create(header, { transaction: t });
+
+    for (const l of lines) {
+      // 🔒 BOQ control
+      await engineeringService.consumeBBSQty({
+        bbsId: l.bbsId,
+        qty: l.qty
+      }, t);
+
+      await DPRLine.create({
+        dprId: dpr.id,
+        bbsId: l.bbsId,
+        qty: l.qty
+      }, { transaction: t });
+    }
+
+    return dpr;
+  });
 
   await audit({
     userId: req.user.id,
