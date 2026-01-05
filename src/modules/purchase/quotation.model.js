@@ -29,6 +29,12 @@ const Quotation = sequelize.define(
       allowNull: false
     },
 
+    attachmentPath: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Supplier quotation document'
+    },
+
     validTill: {
       type: DataTypes.DATE
     },

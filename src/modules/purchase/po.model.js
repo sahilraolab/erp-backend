@@ -38,6 +38,12 @@ const PurchaseOrder = sequelize.define(
       allowNull: false
     },
 
+    attachmentPath: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Signed PO document'
+    },
+
     poDate: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW

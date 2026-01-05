@@ -66,7 +66,9 @@ exports.createGRN = async (req, res) => {
 
 /* ================= APPROVE GRN ================= */
 
+
 exports.approveGRN = async (req, res) => {
+  let fullyAccepted = true;
   const grnId = req.params.id;
 
   await withTx(async (t) => {
@@ -107,32 +109,38 @@ exports.approveGRN = async (req, res) => {
         );
       }
 
-      if (line.acceptedQty <= 0) {
-        throw new Error('Accepted quantity must be greater than zero');
-      }
-
       if (line.acceptedQty > line.receivedQty) {
         throw new Error('Accepted qty cannot exceed received qty');
       }
 
-      stock.quantity += Number(line.acceptedQty);
-      await stock.save({ transaction: t });
+      if (Number(line.acceptedQty) < Number(line.orderedQty)) {
+        fullyAccepted = false;
+      }
 
-      await StockLedger.create(
-        {
-          projectId: grn.projectId,
-          locationId: grn.locationId,
-          materialId: line.materialId,
-          refType: 'GRN',
-          refId: grn.id,
-          qtyIn: line.acceptedQty,
-          balanceQty: stock.quantity
-        },
-        { transaction: t }
-      );
+      if (Number(line.acceptedQty) > 0) {
+        stock.quantity += Number(line.acceptedQty);
+        await stock.save({ transaction: t });
+
+        await StockLedger.create(
+          {
+            projectId: grn.projectId,
+            locationId: grn.locationId,
+            materialId: line.materialId,
+            refType: 'GRN',
+            refId: grn.id,
+            qtyIn: line.acceptedQty,
+            balanceQty: stock.quantity
+          },
+          { transaction: t }
+        );
+      }
     }
 
-    await grn.update({ status: 'APPROVED' }, { transaction: t });
+    await grn.update(
+      { status: fullyAccepted ? 'APPROVED' : 'PARTIAL_APPROVED' },
+      { transaction: t }
+    );
+
   });
 
   await audit({
@@ -300,15 +308,98 @@ exports.transferStock = async (req, res) => {
   res.json(transfer);
 };
 
+exports.cancelMaterialIssue = async (req, res) => {
+  const issueId = req.params.id;
+
+  await withTx(async (t) => {
+    const issue = await MaterialIssue.findByPk(issueId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
+    if (!issue || issue.status !== 'APPROVED') {
+      throw new Error('Only approved issues can be cancelled');
+    }
+
+    const lines = await MaterialIssueLine.findAll({
+      where: { issueId },
+      transaction: t
+    });
+
+    for (const line of lines) {
+      let stock = await Stock.findOne({
+        where: {
+          projectId: issue.projectId,
+          locationId: issue.fromLocationId,
+          materialId: line.materialId
+        },
+        transaction: t,
+        lock: t.LOCK.UPDATE
+      });
+
+      if (!stock) {
+        stock = await Stock.create(
+          {
+            projectId: issue.projectId,
+            locationId: issue.fromLocationId,
+            materialId: line.materialId,
+            quantity: 0
+          },
+          { transaction: t }
+        );
+      }
+
+      stock.quantity += Number(line.issuedQty);
+      await stock.save({ transaction: t });
+
+      await StockLedger.create(
+        {
+          projectId: issue.projectId,
+          locationId: issue.fromLocationId,
+          materialId: line.materialId,
+          refType: 'ISSUE_CANCEL',
+          refId: issue.id,
+          qtyIn: line.issuedQty,
+          balanceQty: stock.quantity
+        },
+        { transaction: t }
+      );
+    }
+
+    await issue.update({ status: 'CANCELLED' }, { transaction: t });
+  });
+
+  await audit({
+    userId: req.user.id,
+    action: 'CANCEL_MATERIAL_ISSUE',
+    module: 'INVENTORY',
+    recordId: issueId
+  });
+
+  res.json({ success: true });
+};
+
 /* ================= REPORTING ================= */
 
 exports.getStock = async (req, res) => {
-  res.json(await Stock.findAll());
+  const where = {};
+  if (req.query.projectId) where.projectId = req.query.projectId;
+  if (req.query.locationId) where.locationId = req.query.locationId;
+  if (req.query.materialId) where.materialId = req.query.materialId;
+
+  res.json(await Stock.findAll({ where }));
 };
 
 exports.getLedger = async (req, res) => {
+  const where = {};
+  if (req.query.projectId) where.projectId = req.query.projectId;
+  if (req.query.locationId) where.locationId = req.query.locationId;
+  if (req.query.materialId) where.materialId = req.query.materialId;
+  if (req.query.refType) where.refType = req.query.refType;
+
   res.json(
     await StockLedger.findAll({
+      where,
       order: [['createdAt', 'DESC']]
     })
   );

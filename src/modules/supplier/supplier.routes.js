@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const auth = require('../../core/auth.middleware');
 const ctrl = require('./supplier.controller');
+const upload = require('../../core/upload.middleware');
 
 /* =====================================================
    SUPPLIER RFQs
@@ -20,6 +21,7 @@ router.get(
 router.post(
   '/quotations',
   auth('supplier.quotation.create'),
+  upload('quotation').single('file'),
   ctrl.submitSupplierQuotation
 );
 

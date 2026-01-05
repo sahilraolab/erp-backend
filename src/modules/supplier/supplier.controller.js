@@ -1,3 +1,5 @@
+// src/modules/supplier/supplier.controller.js
+
 const RFQ = require('../purchase/rfq.model');
 const Requisition = require('../purchase/requisition.model');
 const Project = require('../masters/project.model');
@@ -9,21 +11,12 @@ const Material = require('../masters/material.model');
 const audit = require('../../core/audit');
 
 /* =====================================================
-   SUPPLIER RFQs (ENRICHED + LOCKED CONTEXT)
+   SUPPLIER RFQs (GLOBAL OPEN RFQs)
 ===================================================== */
 
 exports.listSupplierRFQs = async (req, res) => {
-  const supplierId = req.user.supplierId;
-
-  if (!supplierId) {
-    return res.status(400).json({ message: 'Supplier context missing' });
-  }
-
   const rfqs = await RFQ.findAll({
-    where: {
-      supplierId,
-      status: 'OPEN'
-    },
+    where: { status: 'OPEN' },
     order: [['createdAt', 'DESC']],
     include: [
       {
@@ -39,29 +32,22 @@ exports.listSupplierRFQs = async (req, res) => {
     ]
   });
 
-  const response = rfqs.map(rfq => ({
-    id: rfq.id,
-    rfqNo: rfq.rfqNo,
-    rfqDate: rfq.rfqDate,
-    closingDate: rfq.closingDate,
-    status: rfq.status,
-
-    project: {
-      id: rfq.requisition.project.id,
-      name: rfq.requisition.project.name
-    },
-
-    requisition: {
-      id: rfq.requisition.id,
-      reqNo: rfq.requisition.reqNo
-    },
-
-    // 🔒 ENGINEERING CONTEXT (READ-ONLY)
-    budgetId: rfq.requisition.budgetId,
-    estimateId: rfq.requisition.estimateId
-  }));
-
-  res.json(response);
+  res.json(
+    rfqs.map(rfq => ({
+      id: rfq.id,
+      rfqNo: rfq.rfqNo,
+      rfqDate: rfq.rfqDate,
+      closingDate: rfq.closingDate,
+      status: rfq.status,
+      project: rfq.requisition.project,
+      requisition: {
+        id: rfq.requisition.id,
+        reqNo: rfq.requisition.reqNo
+      },
+      budgetId: rfq.requisition.budgetId,
+      estimateId: rfq.requisition.estimateId
+    }))
+  );
 };
 
 /* =====================================================
@@ -70,42 +56,25 @@ exports.listSupplierRFQs = async (req, res) => {
 
 exports.submitSupplierQuotation = async (req, res) => {
   const supplierId = req.user.supplierId;
-
   if (!supplierId) {
     return res.status(400).json({ message: 'Supplier context missing' });
   }
 
   const { rfqId, validTill, items = [] } = req.body;
 
-  if (!rfqId) {
-    return res.status(400).json({ message: 'rfqId is required' });
+  if (!rfqId || !items.length) {
+    return res.status(400).json({ message: 'Invalid request' });
   }
-
-  if (!items.length) {
-    return res.status(400).json({
-      message: 'At least one quotation line item is required'
-    });
-  }
-
-  /* ================= FETCH RFQ + CONTEXT ================= */
 
   const rfq = await RFQ.findOne({
-    where: { id: rfqId, supplierId, status: 'OPEN' },
-    include: [
-      {
-        model: Requisition,
-        attributes: ['projectId', 'budgetId', 'estimateId']
-      }
-    ]
+    where: { id: rfqId, status: 'OPEN' },
+    include: [{ model: Requisition }]
   });
 
   if (!rfq) {
-    return res.status(400).json({
-      message: 'RFQ not found or already closed'
-    });
+    return res.status(400).json({ message: 'RFQ not available' });
   }
 
-  // Prevent duplicate quotation submission
   const existing = await Quotation.findOne({
     where: { rfqId, supplierId }
   });
@@ -116,57 +85,42 @@ exports.submitSupplierQuotation = async (req, res) => {
     });
   }
 
-  const { projectId, budgetId, estimateId } = rfq.requisition;
-
-  /* ================= CREATE QUOTATION ================= */
-
   const quotation = await Quotation.create({
     rfqId,
     supplierId,
-    projectId,
-    budgetId,
-    estimateId,
+    projectId: rfq.requisition.projectId,
+    budgetId: rfq.requisition.budgetId,
+    estimateId: rfq.requisition.estimateId,
     validTill,
-    totalAmount: 0
+    totalAmount: 0,
+    attachmentPath: req.file ? req.file.path : null
   });
-
-  /* ================= LINE ITEMS ================= */
+  
 
   let totalAmount = 0;
 
   for (const line of items) {
-    const qty = Number(line.qty || 0);
-    const rate = Number(line.rate || 0);
-    const taxPct = Number(line.taxPercent || 0);
-
-    if (qty <= 0 || rate <= 0) {
+    if (line.qty <= 0 || line.rate <= 0) {
       return res.status(400).json({
-        message: 'Invalid qty or rate in quotation lines'
+        message: 'Invalid qty or rate'
       });
-    }
-
-    const amount = qty * rate;
-    const taxAmount = (amount * taxPct) / 100;
-    const totalLineAmount = amount + taxAmount;
-
-    totalAmount += totalLineAmount;
+    }; 
 
     await QuotationLine.create({
       quotationId: quotation.id,
-      projectId,
+      projectId: rfq.requisition.projectId,
       materialId: line.materialId,
-      qty,
-      rate,
-      amount,
-      taxPercent: taxPct,
-      taxAmount,
-      totalAmount: totalLineAmount
+      qty: line.qty,
+      rate: line.rate,
+      taxPercent: line.taxPercent || 0
     });
+
+    totalAmount +=
+      line.qty * line.rate +
+      (line.qty * line.rate * (line.taxPercent || 0)) / 100;
   }
 
   await quotation.update({ totalAmount });
-
-  /* ================= AUDIT ================= */
 
   await audit({
     userId: req.user.id,
@@ -175,10 +129,7 @@ exports.submitSupplierQuotation = async (req, res) => {
     recordId: quotation.id
   });
 
-  res.json({
-    quotationId: quotation.id,
-    totalAmount
-  });
+  res.json({ quotationId: quotation.id, totalAmount });
 };
 
 /* =====================================================

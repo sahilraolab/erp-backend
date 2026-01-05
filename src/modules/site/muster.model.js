@@ -6,6 +6,10 @@ const Muster = sequelize.define('muster', {
   siteId: DataTypes.INTEGER,
   date: DataTypes.DATEONLY,
   labourCount: DataTypes.INTEGER
+}, {
+  indexes: [
+    { unique: true, fields: ['siteId', 'date'] }
+  ]
 });
 
 module.exports = Muster;

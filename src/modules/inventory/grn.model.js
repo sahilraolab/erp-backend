@@ -31,7 +31,13 @@ const GRN = sequelize.define(
     },
 
     status: {
-      type: DataTypes.ENUM('DRAFT', 'QC_PENDING', 'APPROVED'),
+      type: DataTypes.ENUM(
+        'DRAFT',
+        'QC_PENDING',
+        'PARTIAL_APPROVED',
+        'APPROVED',
+        'REJECTED'
+      ),
       defaultValue: 'DRAFT'
     },
 

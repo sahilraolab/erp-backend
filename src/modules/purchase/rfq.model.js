@@ -15,14 +15,25 @@ const RFQ = sequelize.define(
       allowNull: false
     },
 
-    supplierId: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
+    // supplierId: {
+    //   type: DataTypes.INTEGER,
+    //   allowNull: false
+    // },
+
+    // supplierId: {
+    //   type: DataTypes.INTEGER,
+    //   allowNull: false,
+    //   comment: 'Original invited supplier (RFQ is globally visible)'
+    // },
 
     rfqDate: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW
+    },
+
+    attachmentPath: {
+      type: DataTypes.STRING,
+      allowNull: true
     },
 
     closingDate: {

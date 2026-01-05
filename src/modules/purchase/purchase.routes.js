@@ -1,26 +1,26 @@
+// src/modules/purchase/purchase.routes.js
+
 const router = require('express').Router();
 const auth = require('../../core/auth.middleware');
+const upload = require('../../core/upload.middleware');
 const ctrl = require('./purchase.controller');
 
 /* =====================================================
    MATERIAL REQUISITION (MR)
 ===================================================== */
 
-// CREATE
 router.post(
   '/requisitions',
   auth('purchase.create'),
   ctrl.createRequisition
 );
 
-// SUBMIT
 router.put(
   '/requisitions/:id/submit',
   auth('purchase.create'),
   ctrl.submitRequisition
 );
 
-// READ
 router.get(
   '/requisitions',
   auth('purchase.view'),
@@ -34,17 +34,16 @@ router.get(
 );
 
 /* =====================================================
-   RFQ
+   RFQ (GLOBAL)
 ===================================================== */
 
-// CREATE
 router.post(
   '/rfqs',
   auth('purchase.create'),
+  upload('rfq').single('file'),
   ctrl.createRFQ
 );
 
-// READ
 router.get(
   '/rfqs',
   auth('purchase.view'),
@@ -52,24 +51,22 @@ router.get(
 );
 
 /* =====================================================
-   QUOTATION
+   QUOTATION (MANUAL BY PURCHASE)
 ===================================================== */
 
-// CREATE (Supplier submits quotation)
 router.post(
   '/quotations',
   auth('purchase.create'),
+  upload('quotation').single('file'),
   ctrl.submitQuotation
 );
 
-// APPROVE
 router.put(
   '/quotations/:id/approve',
   auth('purchase.approve'),
   ctrl.approveQuotation
 );
 
-// READ
 router.get(
   '/quotations',
   auth('purchase.view'),
@@ -86,14 +83,13 @@ router.get(
    PURCHASE ORDER (PO)
 ===================================================== */
 
-// CREATE
 router.post(
   '/po',
   auth('purchase.approve'),
+  upload('po').single('file'),
   ctrl.createPO
 );
 
-// READ
 router.get(
   '/po',
   auth('purchase.view'),
@@ -110,21 +106,19 @@ router.get(
    PURCHASE BILL
 ===================================================== */
 
-// CREATE
 router.post(
   '/bills',
   auth('purchase.create'),
+  upload('purchase-bill').single('file'),
   ctrl.createPurchaseBill
 );
 
-// POST TO ACCOUNTS
 router.put(
   '/bills/:id/post',
   auth('purchase.approve'),
   ctrl.postPurchaseBill
 );
 
-// READ
 router.get(
   '/bills',
   auth('purchase.view'),

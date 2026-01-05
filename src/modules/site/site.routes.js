@@ -22,6 +22,13 @@ router.put(
   ctrl.approveSiteReq
 );
 
+router.put(
+  '/requisitions/:id/submit',
+  auth('site.create'),
+  ctrl.submitSiteReq
+);
+
+
 /* ================= SITE GRN ================= */
 
 router.post(

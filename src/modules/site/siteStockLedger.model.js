@@ -7,7 +7,7 @@ const SiteStockLedger = sequelize.define(
     siteId: DataTypes.INTEGER,
     materialId: DataTypes.INTEGER,
     refType: {
-      type: DataTypes.ENUM('SITE_GRN', 'ISSUE', 'TRANSFER'),
+      type: DataTypes.ENUM('SITE_GRN', 'SITE_TRANSFER', 'ISSUE'),
       allowNull: false
     },
     refId: {

@@ -16,5 +16,10 @@ router.post(
   ctrl.transferStock
 );
 
+router.put(
+  '/issue/:id/cancel',
+  auth('inventory.approve'),
+  ctrl.cancelMaterialIssue
+);
 
 module.exports = router;

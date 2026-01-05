@@ -6,6 +6,10 @@ const DPR = sequelize.define('dpr', {
   siteId: DataTypes.INTEGER,
   date: DataTypes.DATEONLY,
   remarks: DataTypes.TEXT
+}, {
+  indexes: [
+    { unique: true, fields: ['siteId', 'date'] }
+  ]
 });
 
 module.exports = DPR;

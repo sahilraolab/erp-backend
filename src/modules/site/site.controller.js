@@ -61,7 +61,9 @@ exports.approveSiteReq = async (req, res) => {
   const sr = await SiteReq.findByPk(req.params.id);
 
   if (!sr) throw new Error('Site requisition not found');
-  if (sr.status === 'APPROVED') throw new Error('Already approved');
+  if (sr.status !== 'SUBMITTED') {
+    throw new Error('Only submitted requisitions can be approved');
+  }
 
   await sr.update({ status: 'APPROVED' });
 
@@ -127,6 +129,22 @@ exports.approveSiteGRN = async (req, res) => {
 
     if (!lines.length) {
       throw new Error('Cannot approve Site GRN without lines');
+    }
+
+    if (grn.sourceType === 'STORE') {
+      for (const line of lines) {
+        await inventoryService.removeStock(
+          {
+            projectId: grn.projectId,
+            locationId: grn.sourceRefId,
+            materialId: line.materialId,
+            qty: line.receivedQty,
+            refType: 'SITE_GRN',
+            refId: grn.id
+          },
+          t
+        );
+      }
     }
 
     for (const line of lines) {
@@ -222,7 +240,7 @@ exports.approveTransfer = async (req, res) => {
             locationId: transfer.fromRefId,
             materialId: line.materialId,
             qty: line.qty,
-            refType: 'TRANSFER',
+            refType: 'SITE_TRANSFER',
             refId: transfer.id
           },
           t
@@ -233,7 +251,7 @@ exports.approveTransfer = async (req, res) => {
             siteId: transfer.fromRefId,
             materialId: line.materialId,
             qty: line.qty,
-            refType: 'TRANSFER',
+            refType: 'SITE_TRANSFER',
             refId: transfer.id
           },
           t
@@ -250,7 +268,7 @@ exports.approveTransfer = async (req, res) => {
             locationId: transfer.toRefId,
             materialId: line.materialId,
             qty: line.qty,
-            refType: 'TRANSFER',
+            refType: 'SITE_TRANSFER',
             refId: transfer.id
           },
           t
@@ -261,7 +279,7 @@ exports.approveTransfer = async (req, res) => {
             siteId: transfer.toRefId,
             materialId: line.materialId,
             qty: line.qty,
-            refType: 'TRANSFER',
+            refType: 'SITE_TRANSFER',
             refId: transfer.id
           },
           t
@@ -290,7 +308,14 @@ exports.createDPR = async (req, res) => {
   }
 
   const dpr = await withTx(async (t) => {
-    const dpr = await DPR.create(header, { transaction: t });
+    try {
+      const dpr = await DPR.create(header, { transaction: t });
+    } catch (e) {
+      if (e.name === 'SequelizeUniqueConstraintError') {
+        throw new Error('DPR already exists for this site and date');
+      }
+      throw e;
+    }
 
     for (const l of lines) {
       // 🔒 BOQ control
@@ -363,4 +388,24 @@ exports.listSiteGRN = async (req, res) => {
 
 exports.listTransfers = async (req, res) => {
   res.json(await SiteTransfer.findAll());
+};
+
+exports.submitSiteReq = async (req, res) => {
+  const sr = await SiteReq.findByPk(req.params.id);
+
+  if (!sr) throw new Error('Site requisition not found');
+  if (sr.status !== 'DRAFT') {
+    throw new Error('Only draft requisitions can be submitted');
+  }
+
+  await sr.update({ status: 'SUBMITTED' });
+
+  await audit({
+    userId: req.user.id,
+    action: 'SUBMIT_SR',
+    module: 'SITE',
+    recordId: sr.id
+  });
+
+  res.json({ success: true });
 };

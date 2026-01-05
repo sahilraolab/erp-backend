@@ -92,14 +92,15 @@ exports.getRequisition = async (req, res) => {
 };
 
 /* =====================================================
-   RFQ
+   RFQ (GLOBAL)
 ===================================================== */
 
 exports.createRFQ = async (req, res) => {
   const rfq = await RFQ.create({
     rfqNo: genNo('RFQ'),
     requisitionId: req.body.requisitionId,
-    supplierId: req.body.supplierId
+    closingDate: req.body.closingDate,
+    attachmentPath: req.file ? req.file.path : null
   });
 
   await audit({
@@ -114,9 +115,10 @@ exports.createRFQ = async (req, res) => {
 
 exports.listRFQs = async (req, res) => {
   const { requisitionId } = req.query;
+
   res.json(
     await RFQ.findAll({
-      where: { requisitionId },
+      where: requisitionId ? { requisitionId } : {},
       order: [['createdAt', 'DESC']]
     })
   );
@@ -127,7 +129,10 @@ exports.listRFQs = async (req, res) => {
 ===================================================== */
 
 exports.submitQuotation = async (req, res) => {
-  const quotation = await Quotation.create(req.body);
+  const quotation = await Quotation.create({
+    ...req.body,
+    attachmentPath: req.file ? req.file.path : null
+  });
 
   await audit({
     userId: req.user.id,
@@ -138,6 +143,7 @@ exports.submitQuotation = async (req, res) => {
 
   res.json(quotation);
 };
+
 
 exports.approveQuotation = async (req, res) => {
   const quotation = await Quotation.findByPk(req.params.id);
@@ -210,7 +216,8 @@ exports.createPO = async (req, res) => {
     estimateId: quotation.estimateId,
     quotationId: quotation.id,
     supplierId: quotation.supplierId,
-    totalAmount: quotation.totalAmount
+    totalAmount: quotation.totalAmount,
+    attachmentPath: req.file ? req.file.path : null
   });
 
   await workflow.start({
@@ -276,10 +283,10 @@ exports.createPurchaseBill = async (req, res) => {
     poId: po.id,
     grnId,
     supplierId: po.supplierId,
-    billDate: new Date(),
     basicAmount,
     taxAmount,
-    totalAmount: basicAmount + taxAmount
+    totalAmount: basicAmount + taxAmount,
+    attachmentPath: req.file ? req.file.path : null
   });
 
   await grn.update({ billed: true });

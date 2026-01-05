@@ -20,4 +20,10 @@ const Site = sequelize.define('site', {
   }
 });
 
+Site.beforeValidate(async (site) => {
+  if (!site.code) {
+    site.code = `SITE-${Date.now()}`;
+  }
+});
+
 module.exports = Site;

@@ -43,6 +43,12 @@ const PurchaseBill = sequelize.define(
       allowNull: false
     },
 
+    attachmentPath: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Supplier invoice / bill'
+    },
+
     billDate: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW

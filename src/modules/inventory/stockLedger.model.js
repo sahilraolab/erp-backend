@@ -20,7 +20,12 @@ const StockLedger = sequelize.define(
     },
 
     refType: {
-      type: DataTypes.ENUM('GRN', 'ISSUE', 'TRANSFER'),
+      type: DataTypes.ENUM(
+        'GRN',
+        'ISSUE',
+        'ISSUE_CANCEL',
+        'TRANSFER'
+      ),
       allowNull: false
     },
 
