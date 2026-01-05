@@ -2,6 +2,7 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 const Role = require('./role.model');
 const Department = require('../masters/department.model');
+const Supplier = require('../masters/supplier.model');
 
 const User = sequelize.define(
   'user',
@@ -29,6 +30,11 @@ const User = sequelize.define(
 
     // Optional department
     departmentId: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+
+    supplierId: {
       type: DataTypes.INTEGER,
       allowNull: true
     },
@@ -62,5 +68,7 @@ const User = sequelize.define(
 User.belongsTo(Role, { foreignKey: 'roleId' });
 User.belongsTo(Department, { foreignKey: 'departmentId' });
 Department.hasMany(User, { foreignKey: 'departmentId' });
+User.belongsTo(Supplier, { foreignKey: 'supplierId' });
+Supplier.hasMany(User, { foreignKey: 'supplierId' });
 
 module.exports = User;

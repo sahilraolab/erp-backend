@@ -37,6 +37,28 @@ exports.approveBudget = async (req, res) => {
   res.json({ success: true });
 };
 
+exports.listBudgets = async (req, res) => {
+  const { projectId, status } = req.query;
+
+  const where = {};
+
+  if (projectId) {
+    where.projectId = projectId;
+  }
+
+  if (status) {
+    where.status = status;
+  }
+
+  const budgets = await Budget.findAll({
+    where,
+    order: [['createdAt', 'DESC']],
+  });
+
+  res.json(budgets);
+};
+
+
 /* ================= ESTIMATE ================= */
 
 exports.createEstimate = async (req, res) => {
@@ -120,7 +142,14 @@ exports.approveBBS = async (req, res) => {
 
 exports.createDrawing = async (req, res) => {
   const drawing = await withTx(t =>
-    service.createDrawing(req.body, t)
+    service.createDrawing(
+      {
+        projectId: req.body.projectId,
+        title: req.body.title,
+        discipline: req.body.discipline
+      },
+      t
+    )
   );
 
   await audit({
@@ -163,6 +192,17 @@ exports.approveDrawing = async (req, res) => {
   res.json({ success: true });
 };
 
+/* ================= DRAWINGS (READ) ================= */
+
+exports.listDrawings = async (req, res) => {
+  const { projectId } = req.query;
+  if (!projectId) {
+    return res.status(400).json({ message: 'projectId required' });
+  }
+
+  res.json(await service.listDrawings(projectId));
+};
+
 /* ================= COMPLIANCE ================= */
 
 exports.addCompliance = async (req, res) => {
@@ -179,6 +219,57 @@ exports.addCompliance = async (req, res) => {
 
   res.json(compliance);
 };
+
+exports.updateCompliance = async (req, res) => {
+  const compliance = await withTx(t =>
+    service.updateCompliance(req.params.id, req.body, t)
+  );
+
+  await audit({
+    userId: req.user.id,
+    action: 'UPDATE_COMPLIANCE',
+    module: 'ENGINEERING',
+    recordId: compliance.id
+  });
+
+  res.json(compliance);
+};
+
+exports.closeCompliance = async (req, res) => {
+  await withTx(t =>
+    service.closeCompliance(req.params.id, t)
+  );
+
+  await audit({
+    userId: req.user.id,
+    action: 'CLOSE_COMPLIANCE',
+    module: 'ENGINEERING',
+    recordId: req.params.id
+  });
+
+  res.json({ success: true });
+};
+
+exports.listCompliance = async (req, res) => {
+  const { projectId } = req.query;
+
+  if (!projectId) {
+    return res
+      .status(400)
+      .json({ message: 'projectId required' });
+  }
+
+  res.json(await service.listCompliance(projectId));
+};
+
+exports.getCompliance = async (req, res) => {
+  const compliance = await service.getComplianceById(req.params.id);
+  if (!compliance) {
+    return res.status(404).json({ message: 'Compliance not found' });
+  }
+  res.json(compliance);
+};
+
 
 /* ================= READ ================= */
 

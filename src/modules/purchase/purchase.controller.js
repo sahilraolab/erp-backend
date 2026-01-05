@@ -13,15 +13,20 @@ const posting = require('../accounts/posting.service');
 
 const Budget = require('../engineering/budget.model');
 const Estimate = require('../engineering/estimate.model');
+const {
+  ensureComplianceClear,
+  ensureBudgetAvailable
+} = require('../engineering/engineering.service');
 
 const genNo = (p) => `${p}-${Date.now()}`;
 
-/* ================= REQUISITION ================= */
+/* =====================================================
+   REQUISITION
+===================================================== */
 
 exports.createRequisition = async (req, res) => {
   const { projectId, budgetId, estimateId } = req.body;
 
-  /* 🔒 HARD VALIDATIONS */
   const budget = await Budget.findOne({
     where: { id: budgetId, projectId, status: 'APPROVED' }
   });
@@ -56,7 +61,7 @@ exports.createRequisition = async (req, res) => {
 
 exports.submitRequisition = async (req, res) => {
   await Requisition.update(
-    { status: 'SUBMITTED' },
+    { status: 'SUBMITTED', submittedAt: new Date() },
     { where: { id: req.params.id } }
   );
 
@@ -70,7 +75,25 @@ exports.submitRequisition = async (req, res) => {
   res.json({ success: true });
 };
 
-/* ================= RFQ ================= */
+exports.listRequisitions = async (req, res) => {
+  const { projectId } = req.query;
+  res.json(
+    await Requisition.findAll({
+      where: { projectId },
+      order: [['createdAt', 'DESC']]
+    })
+  );
+};
+
+exports.getRequisition = async (req, res) => {
+  const rec = await Requisition.findByPk(req.params.id);
+  if (!rec) return res.status(404).json({ message: 'Not found' });
+  res.json(rec);
+};
+
+/* =====================================================
+   RFQ
+===================================================== */
 
 exports.createRFQ = async (req, res) => {
   const rfq = await RFQ.create({
@@ -89,19 +112,31 @@ exports.createRFQ = async (req, res) => {
   res.json(rfq);
 };
 
-/* ================= QUOTATION ================= */
+exports.listRFQs = async (req, res) => {
+  const { requisitionId } = req.query;
+  res.json(
+    await RFQ.findAll({
+      where: { requisitionId },
+      order: [['createdAt', 'DESC']]
+    })
+  );
+};
+
+/* =====================================================
+   QUOTATION
+===================================================== */
 
 exports.submitQuotation = async (req, res) => {
-  const q = await Quotation.create(req.body);
+  const quotation = await Quotation.create(req.body);
 
   await audit({
     userId: req.user.id,
     action: 'SUBMIT_QUOTATION',
     module: 'PURCHASE',
-    recordId: q.id
+    recordId: quotation.id
   });
 
-  res.json(q);
+  res.json(quotation);
 };
 
 exports.approveQuotation = async (req, res) => {
@@ -110,9 +145,12 @@ exports.approveQuotation = async (req, res) => {
     return res.status(404).json({ message: 'Quotation not found' });
   }
 
-  await quotation.update({ status: 'APPROVED' });
+  await quotation.update({
+    status: 'APPROVED',
+    approvedAt: new Date(),
+    approvedBy: req.user.id
+  });
 
-  // 🔒 Close RFQ once quotation approved
   await RFQ.update(
     { status: 'CLOSED' },
     { where: { id: quotation.rfqId } }
@@ -128,13 +166,30 @@ exports.approveQuotation = async (req, res) => {
   res.json({ success: true });
 };
 
-/* ================= PO ================= */
+exports.listQuotations = async (req, res) => {
+  const { rfqId } = req.query;
+  res.json(
+    await Quotation.findAll({
+      where: { rfqId },
+      order: [['createdAt', 'DESC']]
+    })
+  );
+};
+
+exports.getQuotation = async (req, res) => {
+  const q = await Quotation.findByPk(req.params.id);
+  if (!q) return res.status(404).json({ message: 'Not found' });
+  res.json(q);
+};
+
+/* =====================================================
+   PURCHASE ORDER (PO)
+===================================================== */
 
 exports.createPO = async (req, res) => {
   const existing = await PO.findOne({
     where: { quotationId: req.body.quotationId }
   });
-
   if (existing) {
     return res.status(400).json({
       message: 'PO already exists for this quotation'
@@ -145,6 +200,8 @@ exports.createPO = async (req, res) => {
   if (!quotation || quotation.status !== 'APPROVED') {
     return res.status(400).json({ message: 'Approved quotation required' });
   }
+
+  await ensureComplianceClear(quotation.projectId);
 
   const po = await PO.create({
     poNo: genNo('PO'),
@@ -169,16 +226,31 @@ exports.createPO = async (req, res) => {
     recordId: po.id
   });
 
-  res.json({
-    po,
-    message: 'PO created and sent for approval'
-  });
+  res.json({ po });
 };
 
-/* ================= PURCHASE BILL ================= */
+exports.listPOs = async (req, res) => {
+  const { projectId } = req.query;
+  res.json(
+    await PO.findAll({
+      where: { projectId },
+      order: [['createdAt', 'DESC']]
+    })
+  );
+};
+
+exports.getPO = async (req, res) => {
+  const po = await PO.findByPk(req.params.id);
+  if (!po) return res.status(404).json({ message: 'Not found' });
+  res.json(po);
+};
+
+/* =====================================================
+   PURCHASE BILL
+===================================================== */
 
 exports.createPurchaseBill = async (req, res) => {
-  const { grnId, supplierId, basicAmount, taxAmount } = req.body;
+  const { grnId, basicAmount, taxAmount } = req.body;
 
   const grn = await GRN.findByPk(grnId);
   if (!grn || grn.status !== 'APPROVED') {
@@ -193,6 +265,8 @@ exports.createPurchaseBill = async (req, res) => {
   if (!po || po.status !== 'APPROVED') {
     return res.status(400).json({ message: 'Approved PO required' });
   }
+
+  await ensureComplianceClear(po.projectId);
 
   const bill = await PurchaseBill.create({
     billNo: genNo('PB'),
@@ -223,13 +297,28 @@ exports.createPurchaseBill = async (req, res) => {
     recordId: bill.id
   });
 
-  res.json({
-    bill,
-    message: 'Purchase Bill created and sent for approval'
-  });
+  res.json({ bill });
 };
 
-/* ================= POST TO ACCOUNTS ================= */
+exports.listPurchaseBills = async (req, res) => {
+  const { projectId } = req.query;
+  res.json(
+    await PurchaseBill.findAll({
+      where: { projectId },
+      order: [['createdAt', 'DESC']]
+    })
+  );
+};
+
+exports.getPurchaseBill = async (req, res) => {
+  const bill = await PurchaseBill.findByPk(req.params.id);
+  if (!bill) return res.status(404).json({ message: 'Not found' });
+  res.json(bill);
+};
+
+/* =====================================================
+   POST TO ACCOUNTS
+===================================================== */
 
 exports.postPurchaseBill = async (req, res) => {
   const billId = req.params.id;
@@ -250,6 +339,11 @@ exports.postPurchaseBill = async (req, res) => {
       throw new Error('Purchase Bill already posted');
     }
 
+    await ensureBudgetAvailable(
+      { budgetHeadId: bill.budgetId, amount: bill.totalAmount },
+      t
+    );
+
     await posting.postVoucher({
       type: 'JV',
       narration: `Purchase Bill ${bill.billNo}`,
@@ -262,7 +356,7 @@ exports.postPurchaseBill = async (req, res) => {
     });
 
     await bill.update(
-      { postedToAccounts: true },
+      { postedToAccounts: true, status: 'POSTED' },
       { transaction: t }
     );
   });
@@ -274,5 +368,5 @@ exports.postPurchaseBill = async (req, res) => {
     recordId: billId
   });
 
-  res.json({ success: true, message: 'Posted to accounts' });
+  res.json({ success: true });
 };

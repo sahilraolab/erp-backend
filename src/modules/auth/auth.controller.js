@@ -24,9 +24,15 @@ exports.login = async (req, res) => {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
-    expiresIn: "1d"
-  });
+  const token = jwt.sign(
+    {
+      id: user.id,
+      role: user.role.name,
+      supplierId: user.supplierId || null
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '1d' }
+  );
 
   await audit({
     userId: user.id,

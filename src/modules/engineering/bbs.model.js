@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
+const generateCode = require('../../core/codeGenerator');
 
 const BBS = sequelize.define(
   'bbs',
@@ -16,7 +17,8 @@ const BBS = sequelize.define(
 
     code: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
+      unique: true
     },
 
     description: DataTypes.STRING,
@@ -58,6 +60,13 @@ const BBS = sequelize.define(
     ]
   }
 );
+
+/* ✅ MUST BE beforeValidate (NOT beforeCreate) */
+BBS.beforeValidate(async (bbs, options) => {
+  if (!bbs.code) {
+    bbs.code = await generateCode('BBS', 'bbs', options.transaction);
+  }
+});
 
 /* 🔒 SAFE AMOUNT CALCULATION */
 BBS.beforeSave((bbs) => {

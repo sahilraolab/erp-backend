@@ -18,6 +18,7 @@ module.exports = (app) => {
 
   app.use('/engineering', require('./modules/engineering/engineering.routes'));
   app.use('/purchase', require('./modules/purchase/purchase.routes'));
+  app.use('/supplier', require('./modules/supplier/supplier.routes'));
   app.use('/inventory', require('./modules/inventory/inventory.routes'));
   app.use('/site', require('./modules/site/site.routes'));
   app.use('/qaqc', require('./modules/qaqc/qaqc.routes'));

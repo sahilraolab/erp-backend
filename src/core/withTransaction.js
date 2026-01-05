@@ -1,4 +1,6 @@
+// src/core/withTransaction.js
 const sequelize = require('../config/db');
+const { Transaction } = require('sequelize');
 
 module.exports = async (callback) => {
   if (typeof callback !== 'function') {
@@ -6,7 +8,7 @@ module.exports = async (callback) => {
   }
 
   const t = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
   });
 
   try {

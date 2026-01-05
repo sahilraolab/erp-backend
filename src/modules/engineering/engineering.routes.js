@@ -5,6 +5,7 @@ const ctrl = require('./engineering.controller');
 /* ================= BUDGET ================= */
 router.post('/budget', auth('engineering.create'), ctrl.createBudget);
 router.put('/budget/:id/approve', auth('engineering.approve'), ctrl.approveBudget);
+router.get('/budget', auth('engineering.view'), ctrl.listBudgets);
 
 /* ================= ESTIMATE ================= */
 router.post('/estimate', auth('engineering.create'), ctrl.createEstimate);
@@ -19,9 +20,15 @@ router.put('/bbs/:id/approve', auth('engineering.approve'), ctrl.approveBBS);
 router.post('/drawings', auth('engineering.create'), ctrl.createDrawing);
 router.post('/drawings/revision', auth('engineering.update'), ctrl.reviseDrawing);
 router.put('/drawings/:id/approve', auth('engineering.approve'), ctrl.approveDrawing);
+router.get('/drawings', auth('engineering.view'), ctrl.listDrawings);
 
 /* ================= COMPLIANCE ================= */
 router.post('/compliance', auth('engineering.create'), ctrl.addCompliance);
+router.put('/compliance/:id', auth('engineering.update'), ctrl.updateCompliance);
+router.put('/compliance/:id/close', auth('engineering.approve'), ctrl.closeCompliance);
+router.get('/compliance', auth('engineering.view'), ctrl.listCompliance);
+router.get('/compliance/:id', auth('engineering.view'), ctrl.getCompliance);
+
 
 /* ================= READ ================= */
 router.get('/bbs', auth('engineering.view'), ctrl.listBBS);

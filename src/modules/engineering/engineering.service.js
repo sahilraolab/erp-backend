@@ -61,10 +61,15 @@ exports.approveBudget = async (id, t) => {
 ===================================================== */
 
 exports.createEstimate = async (data, t) => {
+  if (data.baseAmount == null) {
+    throw new Error('Base amount is required');
+  }
+
   const estimate = await Estimate.create(
     {
       projectId: data.projectId,
       name: data.name,
+      baseAmount: data.baseAmount,
       status: 'DRAFT'
     },
     { transaction: t }
@@ -93,21 +98,34 @@ exports.addEstimateVersion = async (data, t) => {
     'Final estimate cannot be modified'
   );
 
-  const last = await EstimateVersion.findOne({
+  const lastVersionNo = await EstimateVersion.max('versionNo', {
     where: { estimateId: estimate.id },
-    order: [['versionNo', 'DESC']],
     transaction: t
   });
 
-  return EstimateVersion.create(
+  const nextVersionNo = (lastVersionNo || 0) + 1;
+
+  const version = await EstimateVersion.create(
     {
       estimateId: estimate.id,
-      versionNo: last.versionNo + 1,
+      versionNo: nextVersionNo,
       amount: data.amount,
       isApproved: false
     },
     { transaction: t }
   );
+
+  // 🔥 IMPORTANT: reset approval & update base
+  await estimate.update(
+    {
+      baseAmount: data.amount,
+      status: 'DRAFT',
+      approvedVersionId: null
+    },
+    { transaction: t }
+  );
+
+  return version;
 };
 
 exports.approveEstimate = async (estimateId, t) => {
@@ -222,8 +240,27 @@ exports.consumeBBSQty = async ({ bbsId, qty }, t) => {
 ===================================================== */
 
 exports.createDrawing = async (data, t) => {
-  return Drawing.create(data, { transaction: t });
+
+  // 🔢 Get next drawing number per project
+  const lastNo = await Drawing.max('drawingNo', {
+    where: { projectId: data.projectId },
+    transaction: t
+  });
+
+  const nextNo = lastNo ? Number(lastNo) + 1 : 1;
+
+  return Drawing.create(
+    {
+      projectId: data.projectId,
+      drawingNo: String(nextNo), // 🔥 REQUIRED
+      title: data.title,
+      discipline: data.discipline,
+      status: 'DRAFT'
+    },
+    { transaction: t }
+  );
 };
+
 
 exports.reviseDrawing = async (data, t) => {
   const drawing = await Drawing.findByPk(data.drawingId, { transaction: t });
@@ -235,10 +272,17 @@ exports.reviseDrawing = async (data, t) => {
     'Approved drawing cannot be revised'
   );
 
+  const lastRevisionNo = await DrawingRevision.max('revisionNo', {
+    where: { drawingId: data.drawingId },
+    transaction: t
+  });
+
+  const nextRevisionNo = (lastRevisionNo || 0) + 1;
+
   return DrawingRevision.create(
     {
       drawingId: data.drawingId,
-      revisionNo: data.revisionNo,
+      revisionNo: nextRevisionNo,
       changeNote: data.changeNote
     },
     { transaction: t }
@@ -252,12 +296,91 @@ exports.approveDrawing = async (drawingId, t) => {
   );
 };
 
+exports.listDrawings = async (projectId) => {
+  return Drawing.findAll({
+    where: { projectId },
+    order: [['createdAt', 'DESC']]
+  });
+};
+
 /* =====================================================
    COMPLIANCE
 ===================================================== */
 
 exports.addCompliance = async (data, t) => {
-  return Compliance.create(data, { transaction: t });
+  if (!data.projectId || !data.type) {
+    throw new Error('projectId and type are required');
+  }
+
+  return Compliance.create(
+    {
+      projectId: data.projectId,
+      type: data.type,
+      documentRef: data.documentRef || null,
+      validTill: data.validTill || null,
+      blocking:
+        data.blocking !== undefined ? data.blocking : true,
+      status: 'OPEN'
+    },
+    { transaction: t }
+  );
+};
+
+exports.updateCompliance = async (id, data, t) => {
+  const compliance = await Compliance.findByPk(id, {
+    transaction: t
+  });
+
+  if (!compliance) {
+    throw new Error('Compliance not found');
+  }
+
+  if (compliance.status === 'CLOSED') {
+    throw new Error('Closed compliance cannot be modified');
+  }
+
+  return compliance.update(
+    {
+      type: data.type,
+      documentRef: data.documentRef || null,
+      validTill: data.validTill || null,
+      blocking:
+        data.blocking !== undefined
+          ? data.blocking
+          : compliance.blocking
+    },
+    { transaction: t }
+  );
+};
+
+exports.closeCompliance = async (id, t) => {
+  const compliance = await Compliance.findByPk(id, {
+    transaction: t
+  });
+
+  if (!compliance) {
+    throw new Error('Compliance not found');
+  }
+
+  if (compliance.status === 'CLOSED') {
+    throw new Error('Compliance already closed');
+  }
+
+  return compliance.update(
+    { status: 'CLOSED' },
+    { transaction: t }
+  );
+};
+
+exports.listCompliance = async (projectId) => {
+  return Compliance.findAll({
+    where: { projectId },
+    order: [['createdAt', 'DESC']]
+  });
+};
+
+exports.getComplianceById = async (id) => {
+  return Compliance.findByPk(id);
 };
 
 /**
