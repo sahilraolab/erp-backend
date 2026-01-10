@@ -32,7 +32,13 @@ const WorkOrder = sequelize.define('work_order', {
   status: {
     type: DataTypes.ENUM('DRAFT', 'APPROVED', 'CLOSED'),
     defaultValue: 'DRAFT'
+  },
+
+  locked: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
+
 });
 
 module.exports = WorkOrder;

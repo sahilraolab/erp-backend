@@ -6,6 +6,10 @@ const WorkOrderLine = sequelize.define('work_order_line', {
     type: DataTypes.INTEGER,
     allowNull: false
   },
+  bbsId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
   itemCode: DataTypes.STRING,
   description: DataTypes.STRING,
   unit: DataTypes.STRING,

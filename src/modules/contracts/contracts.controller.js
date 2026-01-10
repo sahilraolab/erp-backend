@@ -19,6 +19,9 @@ const posting = require('../accounts/posting.service');
 
 const engineeringService = require('../engineering/engineering.service');
 
+const withTx = require('../../core/withTransaction');
+
+
 const genNo = (p) => `${p}-${Date.now()}`;
 
 /* ================= CONTRACTOR ================= */
@@ -72,6 +75,9 @@ exports.createWO = async (req, res) => {
 };
 
 exports.approveWO = async (req, res) => {
+
+  await ensureApproved('CONTRACTS', 'WORK_ORDER', req.params.id);
+
   await WorkOrder.update(
     { status: 'APPROVED', locked: true },
     { where: { id: req.params.id } }
@@ -81,13 +87,55 @@ exports.approveWO = async (req, res) => {
 };
 
 exports.reviseWO = async (req, res) => {
-  res.json(await WorkOrderRevision.create(req.body));
+  const { workOrderId, revisedValue, reason } = req.body;
+
+  const wo = await WorkOrder.findByPk(workOrderId);
+  if (!wo) throw new Error('Work Order not found');
+  if (wo.status !== 'APPROVED') {
+    throw new Error('Only approved Work Orders can be revised');
+  }
+
+  const lastRev = await WorkOrderRevision.findOne({
+    where: { workOrderId },
+    order: [['revisionNo', 'DESC']]
+  });
+
+  const revisionNo = lastRev ? lastRev.revisionNo + 1 : 1;
+
+  const rev = await WorkOrderRevision.create({
+    workOrderId,
+    revisionNo,
+    revisedValue,
+    reason
+  });
+
+  await wo.update({ totalValue: revisedValue });
+
+  await audit({
+    userId: req.user.id,
+    action: 'REVISE_WORK_ORDER',
+    module: 'CONTRACTS',
+    recordId: rev.id
+  });
+
+  res.json(rev);
 };
 
 /* ================= RA BILL ================= */
 
 exports.createRABill = async (req, res) => {
   const { lines, ...header } = req.body;
+
+  const existing = await RABill.findOne({
+    where: {
+      workOrderId: header.workOrderId,
+      status: ['DRAFT', 'APPROVED']
+    }
+  });
+
+  if (existing) {
+    throw new Error('Pending RA Bill already exists for this Work Order');
+  }
 
   const bill = await withTx(async (t) => {
     const bill = await RABill.create({
@@ -144,6 +192,8 @@ exports.createRABill = async (req, res) => {
 };
 
 exports.approveRABill = async (req, res) => {
+  await ensureApproved('CONTRACTS', 'RA_BILL', req.params.id);
+
   await RABill.update(
     { status: 'APPROVED' },
     { where: { id: req.params.id } }
@@ -226,6 +276,11 @@ exports.postRABill = async (req, res) => {
 /* ================= ADVANCE ================= */
 
 exports.createAdvance = async (req, res) => {
+  const wo = await WorkOrder.findByPk(req.body.workOrderId);
+  if (!wo || wo.status !== 'APPROVED') {
+    throw new Error('Advance allowed only for approved Work Orders');
+  }
+
   res.json(await Advance.create(req.body));
 };
 

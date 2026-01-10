@@ -1,3 +1,4 @@
+const { readExcel, writeExcel } = require('../../core/excel.helper');
 const Budget = require('./budget.model');
 const BudgetAccountMap = require('./budgetAccountMap.model');
 const Estimate = require('./estimate.model');
@@ -59,6 +60,43 @@ exports.approveBudget = async (id, t) => {
 /* =====================================================
    ESTIMATE
 ===================================================== */
+
+
+exports.exportEstimateTemplate = async () => {
+  return writeExcel([], ['projectId', 'name', 'baseAmount']);
+};
+
+exports.importEstimateExcel = async (file, t) => {
+  const rows = readExcel(file.buffer);
+
+  if (!rows.length) throw new Error('Empty Excel');
+
+  const created = [];
+
+  for (const r of rows) {
+    if (!r.projectId || !r.baseAmount) {
+      throw new Error('projectId and baseAmount required');
+    }
+
+    const est = await Estimate.create({
+      projectId: r.projectId,
+      name: r.name,
+      baseAmount: r.baseAmount,
+      status: 'DRAFT'
+    }, { transaction: t });
+
+    await EstimateVersion.create({
+      estimateId: est.id,
+      versionNo: 1,
+      amount: r.baseAmount,
+      isApproved: false
+    }, { transaction: t });
+
+    created.push(est);
+  }
+
+  return created;
+};
 
 exports.createEstimate = async (data, t) => {
   if (data.baseAmount == null) {
@@ -165,6 +203,44 @@ exports.approveEstimate = async (estimateId, t) => {
 /* =====================================================
    BBS (BOQ)
 ===================================================== */
+
+exports.exportBBSTemplate = async () => {
+  return writeExcel([], [
+    'projectId',
+    'estimateId',
+    'description',
+    'quantity',
+    'uomId',
+    'rate'
+  ]);
+};
+
+exports.importBBSExcel = async (file, t) => {
+  const rows = readExcel(file.buffer);
+  if (!rows.length) throw new Error('Empty BOQ Excel');
+
+  const created = [];
+
+  for (const r of rows) {
+    if (!r.projectId || !r.estimateId || !r.quantity || !r.rate) {
+      throw new Error('Invalid BOQ row');
+    }
+
+    const bbs = await BBS.create({
+      projectId: r.projectId,
+      estimateId: r.estimateId,
+      description: r.description,
+      quantity: r.quantity,
+      uomId: r.uomId,
+      rate: r.rate,
+      status: 'DRAFT'
+    }, { transaction: t });
+
+    created.push(bbs);
+  }
+
+  return created;
+};
 
 exports.createBBS = async (data, t) => {
   const estimate = await Estimate.findByPk(data.estimateId, { transaction: t });
@@ -407,12 +483,48 @@ exports.ensureComplianceClear = async (projectId, t) => {
    BUDGET CONTROL (Accounts Integration)
 ===================================================== */
 
+exports.exportBudgetTemplate = async () => {
+  return writeExcel([], [
+    'projectId',
+    'accountId',
+    'limitAmount'
+  ]);
+};
+
+exports.importBudgetExcel = async (file, t) => {
+  const rows = readExcel(file.buffer);
+  if (!rows.length) throw new Error('Empty Budget Excel');
+
+  const budgets = {};
+
+  for (const r of rows) {
+    if (!r.projectId || !r.accountId || !r.limitAmount) {
+      throw new Error('Invalid budget row');
+    }
+
+    if (!budgets[r.projectId]) {
+      budgets[r.projectId].totalBudget =
+        Number(budgets[r.projectId].totalBudget) + Number(r.limitAmount);
+
+      await budgets[r.projectId].save({ transaction: t });
+    }
+
+    await BudgetAccountMap.create({
+      budgetId: budgets[r.projectId].id,
+      accountId: r.accountId,
+      limitAmount: r.limitAmount
+    }, { transaction: t });
+  }
+
+  return Object.values(budgets);
+};
+
 exports.ensureBudgetAvailable = async (
   { budgetHeadId, amount },
   t
 ) => {
   const map = await BudgetAccountMap.findOne({
-    where: { budgetHeadId },
+    where: { accountId: budgetHeadId },
     transaction: t,
     lock: t.LOCK.UPDATE
   });

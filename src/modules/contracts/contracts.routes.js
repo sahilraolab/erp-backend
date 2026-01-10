@@ -30,5 +30,21 @@ router.put(
     ctrl.postDCNote
 );
 
+// Contractors
+router.get('/contractors', auth('contracts.view'), async (req, res) => {
+  res.json(await Contractor.findAll());
+});
+
+// Work Orders
+router.get('/work-orders', auth('contracts.view'), async (req, res) => {
+  res.json(await WorkOrder.findAll({ include: [WorkOrderLine] }));
+});
+
+// RA Bills
+router.get('/ra-bills', auth('contracts.view'), async (req, res) => {
+  res.json(await RABill.findAll({ include: [RABillLine] }));
+});
+
+
 
 module.exports = router;
