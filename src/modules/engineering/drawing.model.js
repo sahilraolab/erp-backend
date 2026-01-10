@@ -24,7 +24,13 @@ const Drawing = sequelize.define(
     status: {
       type: DataTypes.ENUM('DRAFT', 'APPROVED'),
       defaultValue: 'DRAFT'
-    }
+    },
+
+    fileName: DataTypes.STRING,
+    fileMime: DataTypes.STRING,
+    fileSize: DataTypes.INTEGER,
+    fileData: DataTypes.BLOB('long')
+
   },
   {
     indexes: [

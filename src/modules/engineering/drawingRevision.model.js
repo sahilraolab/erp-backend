@@ -17,7 +17,13 @@ const DrawingRevision = sequelize.define('drawing_revision', {
   status: {
     type: DataTypes.ENUM('SUBMITTED', 'APPROVED'),
     defaultValue: 'SUBMITTED'
-  }
+  },
+
+  fileName: DataTypes.STRING,
+  fileMime: DataTypes.STRING,
+  fileSize: DataTypes.INTEGER,
+  fileData: DataTypes.BLOB('long')
+
 });
 
 module.exports = DrawingRevision;

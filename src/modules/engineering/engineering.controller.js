@@ -347,3 +347,18 @@ exports.exportBBSData = async (req, res) => {
   if (!projectId) throw new Error('projectId required');
   res.send(await service.exportBBSData(projectId));
 };
+
+exports.approveDrawingRevision = async (req, res) => {
+  const revision = await withTx(t =>
+    service.approveDrawingRevision(req.params.id, t)
+  );
+
+  await audit({
+    userId: req.user.id,
+    action: 'APPROVE_DRAWING_REVISION',
+    module: 'ENGINEERING',
+    recordId: req.params.id
+  });
+
+  res.json(revision);
+};

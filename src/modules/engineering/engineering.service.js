@@ -33,13 +33,9 @@ exports.approveBudget = async (id, t) => {
   const budget = await Budget.findByPk(id, { transaction: t });
   if (!budget) throw new Error('Budget not found');
 
-  ensureEditable(
-    budget,
-    ['APPROVED', 'LOCKED'],
-    'Budget already approved'
-  );
+  ensureEditable(budget, ['APPROVED', 'LOCKED'], 'Budget already approved');
 
-  // Lock previously approved budget for the same project
+  // Lock previous approved budget for same project
   await Budget.update(
     { status: 'LOCKED' },
     {
@@ -51,16 +47,12 @@ exports.approveBudget = async (id, t) => {
     }
   );
 
-  return budget.update(
-    { status: 'APPROVED' },
-    { transaction: t }
-  );
+  return budget.update({ status: 'APPROVED' }, { transaction: t });
 };
 
 /* =====================================================
    ESTIMATE
 ===================================================== */
-
 
 exports.exportEstimateTemplate = async () => {
   return writeExcel([], ['projectId', 'name', 'baseAmount']);
@@ -68,31 +60,36 @@ exports.exportEstimateTemplate = async () => {
 
 exports.importEstimateExcel = async (file, t) => {
   const rows = readExcel(file.buffer);
-
   if (!rows.length) throw new Error('Empty Excel');
 
   const created = [];
 
   for (const r of rows) {
-    if (!r.projectId || !r.baseAmount) {
+    if (!r.projectId || r.baseAmount == null) {
       throw new Error('projectId and baseAmount required');
     }
 
-    const est = await Estimate.create({
-      projectId: r.projectId,
-      name: r.name,
-      baseAmount: r.baseAmount,
-      status: 'DRAFT'
-    }, { transaction: t });
+    const estimate = await Estimate.create(
+      {
+        projectId: r.projectId,
+        name: r.name,
+        baseAmount: r.baseAmount,
+        status: 'DRAFT'
+      },
+      { transaction: t }
+    );
 
-    await EstimateVersion.create({
-      estimateId: est.id,
-      versionNo: 1,
-      amount: r.baseAmount,
-      isApproved: false
-    }, { transaction: t });
+    await EstimateVersion.create(
+      {
+        estimateId: estimate.id,
+        versionNo: 1,
+        amount: r.baseAmount,
+        isApproved: false
+      },
+      { transaction: t }
+    );
 
-    created.push(est);
+    created.push(estimate);
   }
 
   return created;
@@ -130,11 +127,7 @@ exports.addEstimateVersion = async (data, t) => {
   const estimate = await Estimate.findByPk(data.estimateId, { transaction: t });
   if (!estimate) throw new Error('Estimate not found');
 
-  ensureEditable(
-    estimate,
-    ['FINAL'],
-    'Final estimate cannot be modified'
-  );
+  ensureEditable(estimate, ['FINAL'], 'Final estimate cannot be modified');
 
   const lastVersionNo = await EstimateVersion.max('versionNo', {
     where: { estimateId: estimate.id },
@@ -153,7 +146,6 @@ exports.addEstimateVersion = async (data, t) => {
     { transaction: t }
   );
 
-  // 🔥 IMPORTANT: reset approval & update base
   await estimate.update(
     {
       baseAmount: data.amount,
@@ -176,20 +168,14 @@ exports.approveEstimate = async (estimateId, t) => {
     transaction: t
   });
 
-  if (!latestVersion) {
-    throw new Error('No estimate version found');
-  }
+  if (!latestVersion) throw new Error('No estimate version found');
 
-  // Reset previously approved versions
   await EstimateVersion.update(
     { isApproved: false },
     { where: { estimateId }, transaction: t }
   );
 
-  await latestVersion.update(
-    { isApproved: true },
-    { transaction: t }
-  );
+  await latestVersion.update({ isApproved: true }, { transaction: t });
 
   return estimate.update(
     {
@@ -226,15 +212,18 @@ exports.importBBSExcel = async (file, t) => {
       throw new Error('Invalid BOQ row');
     }
 
-    const bbs = await BBS.create({
-      projectId: r.projectId,
-      estimateId: r.estimateId,
-      description: r.description,
-      quantity: r.quantity,
-      uomId: r.uomId,
-      rate: r.rate,
-      status: 'DRAFT'
-    }, { transaction: t });
+    const bbs = await BBS.create(
+      {
+        projectId: r.projectId,
+        estimateId: r.estimateId,
+        description: r.description,
+        quantity: r.quantity,
+        uomId: r.uomId,
+        rate: r.rate,
+        status: 'DRAFT'
+      },
+      { transaction: t }
+    );
 
     created.push(bbs);
   }
@@ -244,7 +233,6 @@ exports.importBBSExcel = async (file, t) => {
 
 exports.createBBS = async (data, t) => {
   const estimate = await Estimate.findByPk(data.estimateId, { transaction: t });
-
   if (!estimate || estimate.status !== 'FINAL') {
     throw new Error('BBS can be created only from approved estimate');
   }
@@ -268,24 +256,13 @@ exports.approveBBS = async (bbsId, t) => {
   const bbs = await BBS.findByPk(bbsId, { transaction: t });
   if (!bbs) throw new Error('BBS not found');
 
-  ensureEditable(
-    bbs,
-    ['APPROVED', 'LOCKED'],
-    'BBS already approved'
-  );
+  ensureEditable(bbs, ['APPROVED', 'LOCKED'], 'BBS already approved');
 
-  return bbs.update(
-    { status: 'APPROVED' },
-    { transaction: t }
-  );
+  return bbs.update({ status: 'APPROVED' }, { transaction: t });
 };
 
 /**
- * 🔒 SINGLE SOURCE OF TRUTH FOR EXECUTION QUANTITY
- * Called ONLY by:
- * - WorkOrder
- * - RA Bill
- * - DPR
+ * 🔒 SINGLE SOURCE OF TRUTH FOR EXECUTION QTY
  */
 exports.consumeBBSQty = async ({ bbsId, qty }, t) => {
   const bbs = await BBS.findByPk(bbsId, {
@@ -298,42 +275,25 @@ exports.consumeBBSQty = async ({ bbsId, qty }, t) => {
     throw new Error('BBS not approved for execution');
   }
 
-  const newExecuted =
-    Number(bbs.executedQty) + Number(qty);
+  const newExecuted = Number(bbs.executedQty) + Number(qty);
 
   if (newExecuted > Number(bbs.quantity)) {
     throw new Error('BOQ quantity exceeded');
   }
 
-  await bbs.update(
-    { executedQty: newExecuted },
-    { transaction: t }
-  );
+  const update = { executedQty: newExecuted };
+  if (newExecuted === Number(bbs.quantity)) {
+    update.status = 'LOCKED';
+  }
+
+  await bbs.update(update, { transaction: t });
 };
-
-// const newExecuted =
-//   Number(bbs.executedQty) + Number(qty);
-
-// if (newExecuted > Number(bbs.quantity)) {
-//   throw new Error('BOQ quantity exceeded');
-// }
-
-// const update = { executedQty: newExecuted };
-
-// if (newExecuted === Number(bbs.quantity)) {
-//   update.status = 'LOCKED';
-// }
-
-// await bbs.update(update, { transaction: t });
-
 
 /* =====================================================
    DRAWINGS
 ===================================================== */
 
 exports.createDrawing = async (data, t) => {
-
-  // 🔢 Get next drawing number per project
   const lastNo = await Drawing.max('drawingNo', {
     where: { projectId: data.projectId },
     transaction: t
@@ -344,7 +304,7 @@ exports.createDrawing = async (data, t) => {
   return Drawing.create(
     {
       projectId: data.projectId,
-      drawingNo: String(nextNo), // 🔥 REQUIRED
+      drawingNo: String(nextNo),
       title: data.title,
       discipline: data.discipline,
       status: 'DRAFT'
@@ -353,16 +313,11 @@ exports.createDrawing = async (data, t) => {
   );
 };
 
-
 exports.reviseDrawing = async (data, t) => {
   const drawing = await Drawing.findByPk(data.drawingId, { transaction: t });
   if (!drawing) throw new Error('Drawing not found');
 
-  ensureEditable(
-    drawing,
-    ['APPROVED'],
-    'Approved drawing cannot be revised'
-  );
+  ensureEditable(drawing, ['APPROVED'], 'Approved drawing cannot be revised');
 
   const lastRevisionNo = await DrawingRevision.max('revisionNo', {
     where: { drawingId: data.drawingId },
@@ -388,6 +343,22 @@ exports.approveDrawing = async (drawingId, t) => {
   );
 };
 
+exports.approveDrawingRevision = async (revisionId, t) => {
+  const revision = await DrawingRevision.findByPk(revisionId, {
+    transaction: t
+  });
+  if (!revision) throw new Error('Drawing revision not found');
+
+  await revision.update({ status: 'APPROVED' }, { transaction: t });
+
+  await Drawing.update(
+    { status: 'APPROVED' },
+    { where: { id: revision.drawingId }, transaction: t }
+  );
+
+  return revision;
+};
+
 exports.listDrawings = async (projectId) => {
   return Drawing.findAll({
     where: { projectId },
@@ -410,8 +381,7 @@ exports.addCompliance = async (data, t) => {
       type: data.type,
       documentRef: data.documentRef || null,
       validTill: data.validTill || null,
-      blocking:
-        data.blocking !== undefined ? data.blocking : true,
+      blocking: data.blocking !== undefined ? data.blocking : true,
       status: 'OPEN'
     },
     { transaction: t }
@@ -419,14 +389,8 @@ exports.addCompliance = async (data, t) => {
 };
 
 exports.updateCompliance = async (id, data, t) => {
-  const compliance = await Compliance.findByPk(id, {
-    transaction: t
-  });
-
-  if (!compliance) {
-    throw new Error('Compliance not found');
-  }
-
+  const compliance = await Compliance.findByPk(id, { transaction: t });
+  if (!compliance) throw new Error('Compliance not found');
   if (compliance.status === 'CLOSED') {
     throw new Error('Closed compliance cannot be modified');
   }
@@ -437,31 +401,20 @@ exports.updateCompliance = async (id, data, t) => {
       documentRef: data.documentRef || null,
       validTill: data.validTill || null,
       blocking:
-        data.blocking !== undefined
-          ? data.blocking
-          : compliance.blocking
+        data.blocking !== undefined ? data.blocking : compliance.blocking
     },
     { transaction: t }
   );
 };
 
 exports.closeCompliance = async (id, t) => {
-  const compliance = await Compliance.findByPk(id, {
-    transaction: t
-  });
-
-  if (!compliance) {
-    throw new Error('Compliance not found');
-  }
-
+  const compliance = await Compliance.findByPk(id, { transaction: t });
+  if (!compliance) throw new Error('Compliance not found');
   if (compliance.status === 'CLOSED') {
     throw new Error('Compliance already closed');
   }
 
-  return compliance.update(
-    { status: 'CLOSED' },
-    { transaction: t }
-  );
+  return compliance.update({ status: 'CLOSED' }, { transaction: t });
 };
 
 exports.listCompliance = async (projectId) => {
@@ -475,9 +428,6 @@ exports.getComplianceById = async (id) => {
   return Compliance.findByPk(id);
 };
 
-/**
- * 🚫 HARD BLOCK CHECK
- */
 exports.ensureComplianceClear = async (projectId, t) => {
   const blocking = await Compliance.findOne({
     where: {
@@ -489,22 +439,16 @@ exports.ensureComplianceClear = async (projectId, t) => {
   });
 
   if (blocking) {
-    throw new Error(
-      'Blocking compliance pending. Execution not allowed.'
-    );
+    throw new Error('Blocking compliance pending. Execution not allowed.');
   }
 };
 
 /* =====================================================
-   BUDGET CONTROL (Accounts Integration)
+   BUDGET CONTROL (ACCOUNTS)
 ===================================================== */
 
 exports.exportBudgetTemplate = async () => {
-  return writeExcel([], [
-    'projectId',
-    'accountId',
-    'limitAmount'
-  ]);
+  return writeExcel([], ['projectId', 'accountId', 'limitAmount']);
 };
 
 exports.importBudgetExcel = async (file, t) => {
@@ -529,9 +473,7 @@ exports.importBudgetExcel = async (file, t) => {
       );
     }
 
-    budgets[r.projectId].totalBudget =
-      Number(budgets[r.projectId].totalBudget) + Number(r.limitAmount);
-
+    budgets[r.projectId].totalBudget += Number(r.limitAmount);
     await budgets[r.projectId].save({ transaction: t });
 
     await BudgetAccountMap.create(
@@ -547,10 +489,7 @@ exports.importBudgetExcel = async (file, t) => {
   return Object.values(budgets);
 };
 
-exports.ensureBudgetAvailable = async (
-  { accountId, amount },
-  t
-) => {
+exports.ensureBudgetAvailable = async ({ accountId, amount }, t) => {
   const map = await BudgetAccountMap.findOne({
     where: { accountId },
     transaction: t,
@@ -566,12 +505,12 @@ exports.ensureBudgetAvailable = async (
     throw new Error('Budget limit exceeded');
   }
 
-  await map.increment(
-    { consumedAmount: amount },
-    { transaction: t }
-  );
+  await map.increment({ consumedAmount: amount }, { transaction: t });
 };
 
+/* =====================================================
+   EXPORT DATA
+===================================================== */
 
 exports.exportEstimateData = async (projectId) => {
   const data = await Estimate.findAll({ where: { projectId } });
@@ -598,21 +537,5 @@ exports.exportBudgetData = async (projectId) => {
       limitAmount: m.limitAmount,
       consumedAmount: m.consumedAmount
     }))
-  );
-};
-
-
-exports.approveDrawingRevision = async (revisionId, t) => {
-  const rev = await DrawingRevision.findByPk(revisionId, { transaction: t });
-  if (!rev) throw new Error('Drawing revision not found');
-
-  await rev.update(
-    { status: 'APPROVED' },
-    { transaction: t }
-  );
-
-  await Drawing.update(
-    { status: 'APPROVED' },
-    { where: { id: rev.drawingId }, transaction: t }
   );
 };

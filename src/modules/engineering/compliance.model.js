@@ -23,7 +23,13 @@ const Compliance = sequelize.define(
     blocking: {
       type: DataTypes.BOOLEAN,
       defaultValue: true
-    }
+    },
+
+    documentName: DataTypes.STRING,
+    documentMime: DataTypes.STRING,
+    documentSize: DataTypes.INTEGER,
+    documentData: DataTypes.BLOB('long')
+
   },
   {
     indexes: [
