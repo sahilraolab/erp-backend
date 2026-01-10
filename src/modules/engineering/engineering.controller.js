@@ -303,6 +303,10 @@ exports.getBudget = async (req, res) => {
   );
 };
 
+// if (req.file) {
+//   req.body.documentRef = `/uploads/compliance/${req.file.originalname}`;
+// }
+
 
 exports.importEstimateExcel = async (req, res) => {
   res.json(await withTx(t =>
@@ -320,4 +324,26 @@ exports.importBudgetExcel = async (req, res) => {
   res.json(await withTx(t =>
     service.importBudgetExcel(req.file, t)
   ));
+};
+
+exports.exportBudgetTemplate = async (req, res) => {
+  res.send(await service.exportBudgetTemplate());
+};
+
+exports.exportBudgetData = async (req, res) => {
+  const { projectId } = req.query;
+  if (!projectId) throw new Error('projectId required');
+  res.send(await service.exportBudgetData(projectId));
+};
+
+exports.exportEstimateData = async (req, res) => {
+  const { projectId } = req.query;
+  if (!projectId) throw new Error('projectId required');
+  res.send(await service.exportEstimateData(projectId));
+};
+
+exports.exportBBSData = async (req, res) => {
+  const { projectId } = req.query;
+  if (!projectId) throw new Error('projectId required');
+  res.send(await service.exportBBSData(projectId));
 };

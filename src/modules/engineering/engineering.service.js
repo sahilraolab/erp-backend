@@ -311,6 +311,22 @@ exports.consumeBBSQty = async ({ bbsId, qty }, t) => {
   );
 };
 
+// const newExecuted =
+//   Number(bbs.executedQty) + Number(qty);
+
+// if (newExecuted > Number(bbs.quantity)) {
+//   throw new Error('BOQ quantity exceeded');
+// }
+
+// const update = { executedQty: newExecuted };
+
+// if (newExecuted === Number(bbs.quantity)) {
+//   update.status = 'LOCKED';
+// }
+
+// await bbs.update(update, { transaction: t });
+
+
 /* =====================================================
    DRAWINGS
 ===================================================== */
@@ -503,33 +519,45 @@ exports.importBudgetExcel = async (file, t) => {
     }
 
     if (!budgets[r.projectId]) {
-      budgets[r.projectId].totalBudget =
-        Number(budgets[r.projectId].totalBudget) + Number(r.limitAmount);
-
-      await budgets[r.projectId].save({ transaction: t });
+      budgets[r.projectId] = await Budget.create(
+        {
+          projectId: r.projectId,
+          totalBudget: 0,
+          status: 'DRAFT'
+        },
+        { transaction: t }
+      );
     }
 
-    await BudgetAccountMap.create({
-      budgetId: budgets[r.projectId].id,
-      accountId: r.accountId,
-      limitAmount: r.limitAmount
-    }, { transaction: t });
+    budgets[r.projectId].totalBudget =
+      Number(budgets[r.projectId].totalBudget) + Number(r.limitAmount);
+
+    await budgets[r.projectId].save({ transaction: t });
+
+    await BudgetAccountMap.create(
+      {
+        budgetId: budgets[r.projectId].id,
+        accountId: r.accountId,
+        limitAmount: r.limitAmount
+      },
+      { transaction: t }
+    );
   }
 
   return Object.values(budgets);
 };
 
 exports.ensureBudgetAvailable = async (
-  { budgetHeadId, amount },
+  { accountId, amount },
   t
 ) => {
   const map = await BudgetAccountMap.findOne({
-    where: { accountId: budgetHeadId },
+    where: { accountId },
     transaction: t,
     lock: t.LOCK.UPDATE
   });
 
-  if (!map) return; // No mapping = unrestricted
+  if (!map) return;
 
   const remaining =
     Number(map.limitAmount) - Number(map.consumedAmount);
@@ -541,5 +569,50 @@ exports.ensureBudgetAvailable = async (
   await map.increment(
     { consumedAmount: amount },
     { transaction: t }
+  );
+};
+
+
+exports.exportEstimateData = async (projectId) => {
+  const data = await Estimate.findAll({ where: { projectId } });
+  return writeExcel(data.map(e => e.toJSON()));
+};
+
+exports.exportBBSData = async (projectId) => {
+  const data = await BBS.findAll({ where: { projectId } });
+  return writeExcel(data.map(b => b.toJSON()));
+};
+
+exports.exportBudgetData = async (projectId) => {
+  const budget = await Budget.findOne({
+    where: { projectId },
+    include: [BudgetAccountMap]
+  });
+
+  if (!budget) return writeExcel([]);
+
+  return writeExcel(
+    budget.budget_account_maps.map(m => ({
+      projectId,
+      accountId: m.accountId,
+      limitAmount: m.limitAmount,
+      consumedAmount: m.consumedAmount
+    }))
+  );
+};
+
+
+exports.approveDrawingRevision = async (revisionId, t) => {
+  const rev = await DrawingRevision.findByPk(revisionId, { transaction: t });
+  if (!rev) throw new Error('Drawing revision not found');
+
+  await rev.update(
+    { status: 'APPROVED' },
+    { transaction: t }
+  );
+
+  await Drawing.update(
+    { status: 'APPROVED' },
+    { where: { id: rev.drawingId }, transaction: t }
   );
 };

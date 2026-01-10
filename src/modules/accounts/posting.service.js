@@ -55,6 +55,10 @@ exports.postVoucher = async ({
         { budgetHeadId, amount },
         t
       );
+      await engineeringService.ensureBudgetAvailable(
+        { accountId: debitAcc.id, amount },
+        t
+      );
     }
 
     /* =====================================================
