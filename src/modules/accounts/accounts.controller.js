@@ -2,7 +2,11 @@ const audit = require('../../core/audit');
 const Account = require('./account.model');
 const Voucher = require('./voucher.model');
 const Line = require('./voucherLine.model');
+const AccountScheduleMap = require('./accountScheduleMap.model');
 const workflow = require('../workflow/workflow.service');
+const Depreciation = require('./depreciation.model');
+const Interest = require('./interest.model');
+const posting = require('./posting.service');
 const { ensureApproved } = require('../workflow/workflow.helper');
 
 /* ================= COA ================= */
@@ -28,23 +32,44 @@ exports.createVoucher = async (req, res) => {
     throw new Error('Voucher is not balanced');
   }
 
-  const voucher = await Voucher.create(header);
+  const result = await sequelize.transaction(async (t) => {
+    const voucher = await Voucher.create(
+      {
+        ...header,
+        companyId: req.user.companyId
+      },
+      { transaction: t }
+    );
 
-  for (const l of lines) {
-    await Line.create({
-      voucherId: voucher.id,
-      ...l,
-    });
-  }
+    for (const l of lines) {
+      const acc = await Account.findByPk(l.accountId, { transaction: t });
+      if (!acc || acc.companyId !== req.user.companyId) {
+        throw new Error('Invalid account for company');
+      }
 
-  await workflow.start({
-    module: 'ACCOUNTS',
-    entity: 'VOUCHER',
-    recordId: voucher.id,
+      await Line.create(
+        {
+          voucherId: voucher.id,
+          ...l
+        },
+        { transaction: t }
+      );
+    }
+
+    await workflow.start(
+      {
+        module: 'ACCOUNTS',
+        entity: 'VOUCHER',
+        recordId: voucher.id,
+      },
+      t
+    );
+
+    return voucher;
   });
 
   res.json({
-    voucher,
+    voucher: result,
     message: 'Voucher created and sent for approval',
   });
 };
@@ -52,16 +77,18 @@ exports.createVoucher = async (req, res) => {
 exports.postVoucher = async (req, res) => {
   await ensureApproved('ACCOUNTS', 'VOUCHER', req.params.id);
 
-  await Voucher.update(
-    { posted: true },
-    { where: { id: req.params.id } }
-  );
+  const voucher = await Voucher.findByPk(req.params.id);
+  if (!voucher || voucher.posted) {
+    throw new Error('Invalid or already posted voucher');
+  }
+
+  await voucher.update({ posted: true });
 
   await audit({
     userId: req.user.id,
     action: 'POST_VOUCHER',
     module: 'ACCOUNTS',
-    recordId: req.params.id,
+    recordId: voucher.id,
   });
 
   res.json({ success: true });
@@ -97,4 +124,50 @@ exports.trialBalance = async (req, res) => {
   }
 
   res.json(tb);
+};
+
+exports.mapAccountSchedule = async (req, res) => {
+  res.json(await AccountScheduleMap.create(req.body));
+};
+
+exports.runDepreciation = async (req, res) => {
+  const dep = await Depreciation.findByPk(req.params.id);
+  if (!dep) throw new Error('Depreciation config missing');
+
+  await posting.postVoucher({
+    type: 'JV',
+    narration: 'Asset Depreciation',
+    debitAccountCode: 'DEPRECIATION_EXPENSE',
+    creditAccountCode: 'ACCUMULATED_DEPRECIATION',
+    amount: dep.rate,
+    userId: req.user.id,
+    reference: `DEPRECIATION:${dep.id}`
+  });
+
+  res.json({ success: true });
+};
+
+exports.runInterest = async (req, res) => {
+  const interest = await Interest.findByPk(req.params.id);
+  if (!interest) throw new Error('Interest config missing');
+
+  const voucher = await posting.postVoucher({
+    type: 'JV',
+    narration: 'Interest Posting',
+    debitAccountCode: 'INTEREST_EXPENSE',
+    creditAccountCode: 'INTEREST_PAYABLE',
+    amount: interest.rate,
+    userId: req.user.id,
+    reference: `INTEREST:${interest.id}`
+  });
+
+  await audit({
+    userId: req.user.id,
+    action: 'POST_INTEREST',
+    module: 'ACCOUNTS',
+    recordId: voucher.id,
+    reference: `INTEREST:${interest.id}`
+  });
+
+  res.json({ success: true });
 };
