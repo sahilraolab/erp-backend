@@ -2,14 +2,22 @@ const Workflow = require('./workflow.model');
 const Step = require('./workflowStep.model');
 const Instance = require('./workflowInstance.model');
 const Action = require('./workflowAction.model');
+const User = require('../auth/user.model'); // adjust path if needed
 
 exports.start = async ({ module, entity, recordId }) => {
+  // Prevent duplicate instances
+  const existing = await Instance.findOne({
+    where: { recordId, status: 'PENDING' }
+  });
+
+  if (existing) return existing;
+
   const workflow = await Workflow.findOne({
     where: { module, entity, isActive: true }
   });
 
+  // Auto-approve if no workflow configured
   if (!workflow) {
-    // Explicitly allow auto-approve if workflow not configured
     return Instance.create({
       workflowId: null,
       recordId,
@@ -22,17 +30,28 @@ exports.start = async ({ module, entity, recordId }) => {
     order: [['stepOrder', 'ASC']]
   });
 
+  if (!steps.length) {
+    return Instance.create({
+      workflowId: workflow.id,
+      recordId,
+      status: 'APPROVED'
+    });
+  }
+
   return Instance.create({
     workflowId: workflow.id,
     recordId,
-    currentStep: steps[0].stepOrder
+    currentStep: steps[0].stepOrder,
+    status: 'PENDING'
   });
 };
 
 exports.act = async ({ instanceId, userId, action, remarks }) => {
   const instance = await Instance.findByPk(instanceId);
-  if (!instance || instance.status !== 'PENDING') {
-    throw new Error('Invalid workflow instance');
+  if (!instance) throw new Error('Workflow instance not found');
+
+  if (instance.status !== 'PENDING') {
+    throw new Error('Workflow already completed');
   }
 
   const step = await Step.findOne({
@@ -42,13 +61,26 @@ exports.act = async ({ instanceId, userId, action, remarks }) => {
     }
   });
 
-  if (!step) {
-    throw new Error('Workflow step not found');
+  if (!step) throw new Error('Workflow step not found');
+
+  const user = await User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+
+  // 🔐 Role enforcement
+  if (step.roleId && step.roleId !== user.roleId) {
+    throw new Error('Not authorized for this approval step');
   }
 
-  // 🔐 ROLE CHECK (CRITICAL)
-  if (step.roleId && step.roleId !== user.roleId) {
-    throw new Error('You are not authorized to act on this step');
+  // Prevent duplicate action
+  const alreadyActed = await Action.findOne({
+    where: {
+      instanceId,
+      stepOrder: instance.currentStep
+    }
+  });
+
+  if (alreadyActed) {
+    throw new Error('Action already taken on this step');
   }
 
   await Action.create({

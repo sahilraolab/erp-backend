@@ -1,4 +1,3 @@
-// workflow/sla.checker.js
 const Instance = require('./workflowInstance.model');
 const Step = require('./workflowStep.model');
 
@@ -6,6 +5,8 @@ exports.checkSLA = async () => {
   const pending = await Instance.findAll({
     where: { status: 'PENDING' }
   });
+
+  const now = new Date();
 
   for (const i of pending) {
     const step = await Step.findOne({
@@ -15,7 +16,14 @@ exports.checkSLA = async () => {
       }
     });
 
-    // Compare createdAt + SLA
-    // Trigger alert (email / notification hook)
+    if (!step || !step.slaHours) continue;
+
+    const deadline = new Date(i.createdAt);
+    deadline.setHours(deadline.getHours() + step.slaHours);
+
+    if (now > deadline) {
+      // 🔔 hook for notification / email / escalation
+      console.warn(`SLA breached for workflow instance ${i.id}`);
+    }
   }
 };
