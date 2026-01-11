@@ -19,6 +19,11 @@ const Stock = sequelize.define(
       allowNull: false
     },
 
+    uomId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+
     quantity: {
       type: DataTypes.DECIMAL(14, 3),
       defaultValue: 0
@@ -26,7 +31,10 @@ const Stock = sequelize.define(
   },
   {
     indexes: [
-      { unique: true, fields: ['projectId', 'locationId', 'materialId'] }
+      {
+        unique: true,
+        fields: ['projectId', 'locationId', 'materialId', 'uomId']
+      }
     ]
   }
 );

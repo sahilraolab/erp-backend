@@ -1,10 +1,10 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
-const SiteGRNLine = sequelize.define(
-  'site_grn_line',
+const RFQLine = sequelize.define(
+  'rfq_line',
   {
-    siteGrnId: {
+    rfqId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
@@ -19,27 +19,22 @@ const SiteGRNLine = sequelize.define(
       allowNull: false
     },
 
-    receivedQty: {
-      type: DataTypes.DECIMAL(14, 3),
+    quantity: {
+      type: DataTypes.DECIMAL(12, 3),
       allowNull: false
     },
 
-    acceptedQty: {
-      type: DataTypes.DECIMAL(14, 3),
-      allowNull: false
-    },
-
-    rejectedQty: {
-      type: DataTypes.DECIMAL(14, 3),
-      defaultValue: 0
+    requisitionLineId: {
+      type: DataTypes.INTEGER,
+      allowNull: true
     }
   },
   {
     indexes: [
-      { fields: ['siteGrnId'] },
+      { fields: ['rfqId'] },
       { fields: ['materialId'] }
     ]
   }
 );
 
-module.exports = SiteGRNLine;
+module.exports = RFQLine;

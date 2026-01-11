@@ -2,7 +2,7 @@ const Workflow = require('./workflow.model');
 const Step = require('./workflowStep.model');
 const Instance = require('./workflowInstance.model');
 const Action = require('./workflowAction.model');
-const User = require('../auth/user.model'); // adjust path if needed
+const User = require('../admin/user.model'); // adjust path if needed
 
 exports.start = async ({ module, entity, recordId }) => {
   // Prevent duplicate instances

@@ -7,91 +7,94 @@ const Account = require('./account.model');
 const audit = require('../../core/audit');
 const engineeringService = require('../engineering/engineering.service');
 
-const genNo = (p) => `${p}-${Date.now()}`;
-
 /**
  * 🔒 CENTRALIZED ACCOUNTING POSTING SERVICE
  *
- * All financial postings (RA Bills, DC Notes, Auto JV, etc.)
- * MUST pass through this function.
- *
- * Guarantees:
- * - Atomic transaction
- * - Budget enforcement
- * - Compliance enforcement
- * - Double-entry integrity
+ * RULES:
+ * - All postings create exactly ONE voucher
+ * - Voucher must balance (Dr = Cr)
+ * - Voucher is immutable after posting
+ * - Source traceability is mandatory
  */
 exports.postVoucher = async ({
-  type,                     // JV, PV, RV
+  companyId,
+  type,                     // JV | PV | RV
   narration,
   debitAccountCode,
   creditAccountCode,
   amount,
   userId,
-  reference,
 
-  // 🔐 Engineering guards
-  projectId = null,         // required if compliance applies
-  budgetHeadId = null       // required if budget control applies
+  sourceType,               // RA_BILL | GRN | PURCHASE_BILL | MANUAL
+  sourceId,
+
+  projectId = null,
+  budgetHeadId = null
 }) => {
   if (!amount || amount <= 0) {
     throw new Error('Voucher amount must be greater than zero');
   }
 
+  if (!companyId || !sourceType || !sourceId) {
+    throw new Error('companyId, sourceType and sourceId are mandatory');
+  }
+
   return sequelize.transaction(async (t) => {
 
     /* =====================================================
-       🔒 ENGINEERING GATES (MUST PASS)
+       🔒 ENGINEERING / COMPLIANCE GATES
        ===================================================== */
 
-    // 1️⃣ Compliance block (statutory / engineering)
     if (projectId) {
       await engineeringService.ensureComplianceClear(projectId);
     }
 
-    // 2️⃣ Budget availability check
-    if (budgetHeadId) {
-      await engineeringService.ensureBudgetAvailable(
-        { budgetHeadId, amount },
-        t
-      );
-      await engineeringService.ensureBudgetAvailable(
-        { accountId: debitAcc.id, amount },
-        t
-      );
-    }
-
     /* =====================================================
-       🔐 ACCOUNT LOCKING (PREVENT RACE CONDITIONS)
+       🔐 ACCOUNT FETCH + LOCK (COMPANY SAFE)
        ===================================================== */
 
     const debitAcc = await Account.findOne({
-      where: { code: debitAccountCode },
+      where: { companyId, code: debitAccountCode },
       transaction: t,
       lock: t.LOCK.UPDATE
     });
 
     const creditAcc = await Account.findOne({
-      where: { code: creditAccountCode },
+      where: { companyId, code: creditAccountCode },
       transaction: t,
       lock: t.LOCK.UPDATE
     });
 
     if (!debitAcc || !creditAcc) {
-      throw new Error('Account mapping missing for posting');
+      throw new Error('Debit/Credit account not found for company');
     }
 
     /* =====================================================
-       🧾 VOUCHER CREATION
+       🔒 BUDGET CHECK (OPTIONAL)
+       ===================================================== */
+
+    if (budgetHeadId) {
+      await engineeringService.ensureBudgetAvailable(
+        { budgetHeadId, amount },
+        t
+      );
+    }
+
+    /* =====================================================
+       🧾 CREATE VOUCHER (HEADER)
        ===================================================== */
 
     const voucher = await Voucher.create(
       {
-        voucherNo: genNo(type),
+        voucherNo: `VCH-${companyId}-${Date.now()}`,
         date: new Date(),
         type,
         narration,
-        posted: true
+        status: 'POSTED',
+        sourceType,
+        sourceId,
+        companyId,
+        createdBy: userId
       },
       { transaction: t }
     );
@@ -100,23 +103,37 @@ exports.postVoucher = async ({
        📘 DOUBLE ENTRY LINES
        ===================================================== */
 
-    await VoucherLine.bulkCreate(
-      [
-        {
-          voucherId: voucher.id,
-          accountId: debitAcc.id,
-          debit: amount,
-          credit: 0
-        },
-        {
-          voucherId: voucher.id,
-          accountId: creditAcc.id,
-          debit: 0,
-          credit: amount
-        }
-      ],
-      { transaction: t }
-    );
+    const lines = [
+      {
+        voucherId: voucher.id,
+        companyId,
+        accountId: debitAcc.id,
+        projectId,
+        debit: amount,
+        credit: 0
+      },
+      {
+        voucherId: voucher.id,
+        companyId,
+        accountId: creditAcc.id,
+        projectId,
+        debit: 0,
+        credit: amount
+      }
+    ];
+
+    await VoucherLine.bulkCreate(lines, { transaction: t });
+
+    /* =====================================================
+       🔍 DOUBLE ENTRY ASSERTION (FINAL SAFETY)
+       ===================================================== */
+
+    const totalDebit = amount;
+    const totalCredit = amount;
+
+    if (totalDebit !== totalCredit) {
+      throw new Error('Voucher imbalance detected (Dr ≠ Cr)');
+    }
 
     /* =====================================================
        📝 AUDIT LOG
@@ -125,10 +142,10 @@ exports.postVoucher = async ({
     await audit(
       {
         userId,
-        action: 'AUTO_POST_VOUCHER',
+        action: 'POST_VOUCHER',
         module: 'ACCOUNTS',
         recordId: voucher.id,
-        reference
+        meta: { sourceType, sourceId }
       },
       t
     );

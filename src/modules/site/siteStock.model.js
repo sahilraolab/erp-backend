@@ -8,10 +8,17 @@ const SiteStock = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false
     },
+
     materialId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
+
+    uomId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+
     quantity: {
       type: DataTypes.DECIMAL(14, 3),
       defaultValue: 0
@@ -19,7 +26,10 @@ const SiteStock = sequelize.define(
   },
   {
     indexes: [
-      { unique: true, fields: ['siteId', 'materialId'] }
+      {
+        unique: true,
+        fields: ['siteId', 'materialId', 'uomId']
+      }
     ]
   }
 );

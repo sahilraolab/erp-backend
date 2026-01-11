@@ -19,6 +19,11 @@ const GRNLine = sequelize.define(
       allowNull: false
     },
 
+    uomId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+
     orderedQty: {
       type: DataTypes.DECIMAL(12, 3),
       allowNull: false
@@ -42,6 +47,7 @@ const GRNLine = sequelize.define(
   {
     indexes: [
       { fields: ['grnId'] },
+      { fields: ['poLineId'] },
       { fields: ['materialId'] }
     ]
   }

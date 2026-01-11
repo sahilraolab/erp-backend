@@ -6,41 +6,58 @@ const Voucher = sequelize.define(
   {
     voucherNo: {
       type: DataTypes.STRING,
-      allowNull: false,
-      unique: true,
+      allowNull: false
     },
 
     date: {
       type: DataTypes.DATEONLY,
-      allowNull: false,
+      allowNull: false
     },
 
     type: {
       type: DataTypes.ENUM('JV', 'PV', 'RV'),
-      allowNull: false,
+      allowNull: false
     },
 
-    narration: DataTypes.TEXT,
+    narration: {
+      type: DataTypes.TEXT
+    },
 
-    posted: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false,
+    status: {
+      type: DataTypes.ENUM('DRAFT', 'POSTED'),
+      defaultValue: 'DRAFT'
+    },
+
+    sourceType: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
+
+    sourceId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
     },
 
     companyId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: false
     },
+
+    createdBy: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    }
   },
   {
     tableName: 'vouchers',
     timestamps: true,
     indexes: [
-      { fields: ['voucherNo'] },
+      { unique: true, fields: ['companyId', 'voucherNo'] },
       { fields: ['companyId'] },
       { fields: ['date'] },
-      { fields: ['posted'] },
-    ],
+      { fields: ['status'] },
+      { fields: ['sourceType', 'sourceId'] }
+    ]
   }
 );
 

@@ -9,17 +9,18 @@ const QuotationLine = sequelize.define(
       allowNull: false
     },
 
-    projectId: {
+    /* Engineering traceability */
+    bbsId: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+
+    materialId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
 
-    /* 🔒 Engineering traceability */
-    bbsId: {
-      type: DataTypes.INTEGER
-    },
-
-    materialId: {
+    uomId: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
@@ -36,6 +37,11 @@ const QuotationLine = sequelize.define(
 
     amount: {
       type: DataTypes.DECIMAL(14, 2)
+    },
+
+    taxId: {
+      type: DataTypes.INTEGER,
+      allowNull: true
     },
 
     taxPercent: {
@@ -55,15 +61,16 @@ const QuotationLine = sequelize.define(
   {
     indexes: [
       { fields: ['quotationId'] },
-      { fields: ['projectId'] },
       { fields: ['materialId'] },
       { fields: ['bbsId'] }
+      // Optional:
+      // { unique: true, fields: ['quotationId', 'materialId', 'bbsId'] }
     ]
   }
 );
 
-/* ✅ ENTERPRISE CALCULATION HOOK */
-QuotationLine.beforeSave((line) => {
+/* 🔒 SAFE DERIVED CALCULATIONS */
+QuotationLine.beforeValidate((line) => {
   const qty = Number(line.qty || 0);
   const rate = Number(line.rate || 0);
   const taxPct = Number(line.taxPercent || 0);

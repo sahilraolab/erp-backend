@@ -19,12 +19,20 @@ const StockLedger = sequelize.define(
       allowNull: false
     },
 
+    uomId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+
     refType: {
       type: DataTypes.ENUM(
+        'OPENING',
         'GRN',
         'ISSUE',
         'ISSUE_CANCEL',
-        'TRANSFER'
+        'TRANSFER_IN',
+        'TRANSFER_OUT',
+        'ADJUSTMENT'
       ),
       allowNull: false
     },
@@ -47,13 +55,19 @@ const StockLedger = sequelize.define(
     balanceQty: {
       type: DataTypes.DECIMAL(14, 3),
       allowNull: false
+    },
+
+    txnAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW
     }
   },
   {
     indexes: [
       { fields: ['materialId'] },
       { fields: ['projectId', 'locationId'] },
-      { fields: ['refType', 'refId'] }
+      { fields: ['refType', 'refId'] },
+      { fields: ['txnAt'] }
     ]
   }
 );

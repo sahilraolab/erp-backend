@@ -15,50 +15,27 @@ const RFQ = sequelize.define(
       allowNull: false
     },
 
-    // supplierId: {
-    //   type: DataTypes.INTEGER,
-    //   allowNull: false
-    // },
-
-    // supplierId: {
-    //   type: DataTypes.INTEGER,
-    //   allowNull: false,
-    //   comment: 'Original invited supplier (RFQ is globally visible)'
-    // },
-
     rfqDate: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW
     },
 
-    attachmentPath: {
-      type: DataTypes.STRING,
+    closingDate: {
+      type: DataTypes.DATE,
       allowNull: true
     },
 
-    closingDate: {
-      type: DataTypes.DATE
-    },
-
     status: {
-      type: DataTypes.ENUM('OPEN', 'CLOSED'),
+      type: DataTypes.ENUM('OPEN', 'CLOSED', 'CANCELLED'),
       defaultValue: 'OPEN'
     }
   },
   {
     indexes: [
       { fields: ['requisitionId'] },
-      { fields: ['supplierId'] },
       { fields: ['status'] }
     ]
   }
 );
-
-/* 🔒 IMMUTABILITY RULE */
-RFQ.beforeUpdate((rfq) => {
-  if (rfq._previousDataValues.status === 'CLOSED') {
-    throw new Error('Closed RFQ cannot be modified');
-  }
-});
 
 module.exports = RFQ;

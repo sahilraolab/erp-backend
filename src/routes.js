@@ -39,14 +39,14 @@ module.exports = (app) => {
 
   app.use('/mis', require('./modules/mis/mis.routes'));
   app.use('/dashboard', require('./modules/dashboard/dashboard.routes'));
-  app.use('/analytics', require('./modules/analytics/analytics.routes'));
-  app.use('/forecast', require('./modules/forecasting/forecast.routes'));
+  // app.use('/analytics', require('./modules/analytics/analytics.routes'));
+  // app.use('/forecast', require('./modules/forecasting/forecast.routes'));
 
   /* ================= AUTOMATION & AI ================= */
 
   app.use('/workflow', require('./modules/workflow/workflow.routes'));
   app.use('/automation', require('./modules/automation/automation.routes'));
-  app.use('/ai', require('./modules/ai/ai.routes'));
+  // app.use('/ai', require('./modules/ai/ai.routes'));
 
   /* ================= REPORT ENGINE ================= */
 

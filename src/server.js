@@ -55,13 +55,14 @@ const PORT = process.env.PORT || 3000;
     await sequelize.authenticate();
     console.log('✅ MySQL connected to DB:', process.env.DB_NAME);
 
-    await sequelize.sync();
+    await sequelize.sync({ alter: true });
     console.log('🔁 Database synced successfully');
 
     app.listen(PORT, () => {
       console.log(`🚀 ERP Backend + Frontend running on ${PORT}`);
     });
   } catch (err) {
+    console.log(err);
     console.error('❌ Startup failed:', err.message);
     process.exit(1);
   }

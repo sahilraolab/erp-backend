@@ -1,45 +1,67 @@
-const { DataTypes } = require("sequelize");
-const sequelize = require("../../config/db");
+const { DataTypes } = require('sequelize');
+const sequelize = require('../../config/db');
 
 const WorkflowInstance = sequelize.define(
-  "WorkflowInstance",
+  'workflow_instance',
   {
-    id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
-    },
-
     workflowId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: false
+    },
+
+    module: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
+
+    entity: {
+      type: DataTypes.STRING,
+      allowNull: false
     },
 
     recordId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: false
     },
 
     currentStep: {
       type: DataTypes.INTEGER,
-      defaultValue: 0,
+      allowNull: false,
+      defaultValue: 1
     },
 
     status: {
-      type: DataTypes.ENUM("PENDING", "APPROVED", "REJECTED"),
-      defaultValue: "PENDING",
+      type: DataTypes.ENUM('PENDING', 'APPROVED', 'REJECTED'),
+      defaultValue: 'PENDING'
     },
+
+    initiatedBy: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+
+    completedAt: {
+      type: DataTypes.DATE
+    }
   },
   {
-    tableName: "workflow_instances",
+    tableName: 'workflow_instances',
     timestamps: true,
-
-    // ✅ indexes go HERE
     indexes: [
-      { fields: ["workflowId"] },
-      { fields: ["recordId"] },
-      { fields: ["status"] },
+      {
+        unique: true,
+        fields: ['module', 'entity', 'recordId']
+      },
+      { fields: ['workflowId'] },
+      { fields: ['status'] },
+      { fields: ['currentStep'] }
     ],
+    hooks: {
+      beforeValidate: (inst) => {
+        if (inst.module) inst.module = inst.module.toUpperCase().trim();
+        if (inst.entity) inst.entity = inst.entity.toUpperCase().trim();
+      }
+    }
   }
 );
 

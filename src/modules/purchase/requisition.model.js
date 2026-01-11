@@ -52,13 +52,13 @@ const Requisition = sequelize.define(
 );
 
 /* 🔒 IMMUTABILITY RULE */
-Requisition.beforeUpdate((req) => {
-  if (
-    req._previousDataValues.status !== 'DRAFT' &&
-    req.status !== 'SUBMITTED'
-  ) {
-    throw new Error('Requisition cannot be modified');
-  }
-});
+// Requisition.beforeUpdate((req) => {
+//   if (
+//     req._previousDataValues.status !== 'DRAFT' &&
+//     req.status !== 'SUBMITTED'
+//   ) {
+//     throw new Error('Requisition cannot be modified');
+//   }
+// });
 
 module.exports = Requisition;
