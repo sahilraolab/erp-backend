@@ -144,6 +144,7 @@ router.get(
 
 router.post(
   '/drawings',
+  upload.single('file'),
   auth('engineering.create'),
   ctrl.createDrawing
 );
@@ -178,6 +179,7 @@ router.get(
 
 router.post(
   '/compliance',
+  upload.single('file'),
   auth('engineering.create'),
   ctrl.addCompliance
 );

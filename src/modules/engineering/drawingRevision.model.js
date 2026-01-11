@@ -8,7 +8,7 @@ const DrawingRevision = sequelize.define('drawing_revision', {
   },
 
   revisionNo: {
-    type: DataTypes.STRING,
+    type: DataTypes.INTEGER,
     allowNull: false
   },
 

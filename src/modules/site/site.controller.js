@@ -308,8 +308,16 @@ exports.createDPR = async (req, res) => {
   }
 
   const dpr = await withTx(async (t) => {
+
+    /* 🔒 HARD COMPLIANCE BLOCK */
+    await engineeringService.ensureComplianceClear(
+      header.projectId,
+      t
+    );
+
+    let dpr;
     try {
-      const dpr = await DPR.create(header, { transaction: t });
+      dpr = await DPR.create(header, { transaction: t });
     } catch (e) {
       if (e.name === 'SequelizeUniqueConstraintError') {
         throw new Error('DPR already exists for this site and date');
@@ -318,17 +326,24 @@ exports.createDPR = async (req, res) => {
     }
 
     for (const l of lines) {
-      // 🔒 BOQ control
-      await engineeringService.consumeBBSQty({
-        bbsId: l.bbsId,
-        qty: l.qty
-      }, t);
 
-      await DPRLine.create({
-        dprId: dpr.id,
-        bbsId: l.bbsId,
-        qty: l.qty
-      }, { transaction: t });
+      /* 🔒 SINGLE SOURCE OF TRUTH */
+      await engineeringService.consumeBBSQty(
+        {
+          bbsId: l.bbsId,
+          qty: l.qty
+        },
+        t
+      );
+
+      await DPRLine.create(
+        {
+          dprId: dpr.id,
+          bbsId: l.bbsId,
+          qty: l.qty
+        },
+        { transaction: t }
+      );
     }
 
     return dpr;

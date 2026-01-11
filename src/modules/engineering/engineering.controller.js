@@ -5,7 +5,9 @@ const BBS = require('./bbs.model');
 const Estimate = require('./estimate.model');
 const Budget = require('./budget.model');
 
-/* ================= BUDGET ================= */
+/* =====================================================
+   BUDGET
+===================================================== */
 
 exports.createBudget = async (req, res) => {
   const budget = await withTx(t =>
@@ -39,27 +41,28 @@ exports.approveBudget = async (req, res) => {
 
 exports.listBudgets = async (req, res) => {
   const { projectId, status } = req.query;
-
   const where = {};
 
-  if (projectId) {
-    where.projectId = projectId;
-  }
+  if (projectId) where.projectId = projectId;
+  if (status) where.status = status;
 
-  if (status) {
-    where.status = status;
-  }
-
-  const budgets = await Budget.findAll({
-    where,
-    order: [['createdAt', 'DESC']],
-  });
-
-  res.json(budgets);
+  res.json(
+    await Budget.findAll({
+      where,
+      order: [['createdAt', 'DESC']]
+    })
+  );
 };
 
+exports.getBudget = async (req, res) => {
+  res.json(
+    await Budget.findOne({ where: { projectId: req.params.projectId } })
+  );
+};
 
-/* ================= ESTIMATE ================= */
+/* =====================================================
+   ESTIMATE
+===================================================== */
 
 exports.createEstimate = async (req, res) => {
   const estimate = await withTx(t =>
@@ -106,7 +109,15 @@ exports.approveEstimate = async (req, res) => {
   res.json({ success: true });
 };
 
-/* ================= BBS ================= */
+exports.listEstimates = async (req, res) => {
+  res.json(
+    await Estimate.findAll({ where: { projectId: req.query.projectId } })
+  );
+};
+
+/* =====================================================
+   BBS
+===================================================== */
 
 exports.createBBS = async (req, res) => {
   const bbs = await withTx(t =>
@@ -138,18 +149,27 @@ exports.approveBBS = async (req, res) => {
   res.json({ success: true });
 };
 
-/* ================= DRAWINGS ================= */
+exports.listBBS = async (req, res) => {
+  res.json(
+    await BBS.findAll({ where: { projectId: req.query.projectId } })
+  );
+};
+
+/* =====================================================
+   DRAWINGS
+===================================================== */
 
 exports.createDrawing = async (req, res) => {
+
+  if (req.file) {
+    req.body.documentName = req.file.originalname;
+    req.body.documentMime = req.file.mimetype;
+    req.body.documentSize = req.file.size;
+    req.body.documentData = req.file.buffer;
+  }
+
   const drawing = await withTx(t =>
-    service.createDrawing(
-      {
-        projectId: req.body.projectId,
-        title: req.body.title,
-        discipline: req.body.discipline
-      },
-      t
-    )
+    service.createDrawing(req.body, t)
   );
 
   await audit({
@@ -192,20 +212,38 @@ exports.approveDrawing = async (req, res) => {
   res.json({ success: true });
 };
 
-/* ================= DRAWINGS (READ) ================= */
+exports.approveDrawingRevision = async (req, res) => {
+  const revision = await withTx(t =>
+    service.approveDrawingRevision(req.params.id, t)
+  );
 
-exports.listDrawings = async (req, res) => {
-  const { projectId } = req.query;
-  if (!projectId) {
-    return res.status(400).json({ message: 'projectId required' });
-  }
+  await audit({
+    userId: req.user.id,
+    action: 'APPROVE_DRAWING_REVISION',
+    module: 'ENGINEERING',
+    recordId: req.params.id
+  });
 
-  res.json(await service.listDrawings(projectId));
+  res.json(revision);
 };
 
-/* ================= COMPLIANCE ================= */
+exports.listDrawings = async (req, res) => {
+  res.json(await service.listDrawings(req.query.projectId));
+};
+
+/* =====================================================
+   COMPLIANCE
+===================================================== */
 
 exports.addCompliance = async (req, res) => {
+
+  if (req.file) {
+    req.body.documentName = req.file.originalname;
+    req.body.documentMime = req.file.mimetype;
+    req.body.documentSize = req.file.size;
+    req.body.documentData = req.file.buffer;
+  }
+
   const compliance = await withTx(t =>
     service.addCompliance(req.body, t)
   );
@@ -251,15 +289,7 @@ exports.closeCompliance = async (req, res) => {
 };
 
 exports.listCompliance = async (req, res) => {
-  const { projectId } = req.query;
-
-  if (!projectId) {
-    return res
-      .status(400)
-      .json({ message: 'projectId required' });
-  }
-
-  res.json(await service.listCompliance(projectId));
+  res.json(await service.listCompliance(req.query.projectId));
 };
 
 exports.getCompliance = async (req, res) => {
@@ -270,43 +300,9 @@ exports.getCompliance = async (req, res) => {
   res.json(compliance);
 };
 
-
-/* ================= READ ================= */
-
-exports.listBBS = async (req, res) => {
-  const { projectId } = req.query;
-  if (!projectId) {
-    return res.status(400).json({ message: 'projectId required' });
-  }
-
-  res.json(
-    await BBS.findAll({ where: { projectId } })
-  );
-};
-
-exports.listEstimates = async (req, res) => {
-  const { projectId } = req.query;
-  if (!projectId) {
-    return res.status(400).json({ message: 'projectId required' });
-  }
-
-  res.json(
-    await Estimate.findAll({ where: { projectId } })
-  );
-};
-
-exports.getBudget = async (req, res) => {
-  const { projectId } = req.params;
-
-  res.json(
-    await Budget.findOne({ where: { projectId } })
-  );
-};
-
-// if (req.file) {
-//   req.body.documentRef = `/uploads/compliance/${req.file.originalname}`;
-// }
-
+/* =====================================================
+   IMPORT / EXPORT
+===================================================== */
 
 exports.importEstimateExcel = async (req, res) => {
   res.json(await withTx(t =>
@@ -326,39 +322,26 @@ exports.importBudgetExcel = async (req, res) => {
   ));
 };
 
-exports.exportBudgetTemplate = async (req, res) => {
+exports.exportBudgetTemplate = async (_, res) => {
   res.send(await service.exportBudgetTemplate());
 };
 
 exports.exportBudgetData = async (req, res) => {
-  const { projectId } = req.query;
-  if (!projectId) throw new Error('projectId required');
-  res.send(await service.exportBudgetData(projectId));
+  res.send(await service.exportBudgetData(req.query.projectId));
 };
 
 exports.exportEstimateData = async (req, res) => {
-  const { projectId } = req.query;
-  if (!projectId) throw new Error('projectId required');
-  res.send(await service.exportEstimateData(projectId));
+  res.send(await service.exportEstimateData(req.query.projectId));
 };
 
 exports.exportBBSData = async (req, res) => {
-  const { projectId } = req.query;
-  if (!projectId) throw new Error('projectId required');
-  res.send(await service.exportBBSData(projectId));
+  res.send(await service.exportBBSData(req.query.projectId));
 };
 
-exports.approveDrawingRevision = async (req, res) => {
-  const revision = await withTx(t =>
-    service.approveDrawingRevision(req.params.id, t)
-  );
+exports.exportEstimateTemplate = async (_, res) => {
+  res.send(await service.exportEstimateTemplate());
+};
 
-  await audit({
-    userId: req.user.id,
-    action: 'APPROVE_DRAWING_REVISION',
-    module: 'ENGINEERING',
-    recordId: req.params.id
-  });
-
-  res.json(revision);
+exports.exportBBSTemplate = async (_, res) => {
+  res.send(await service.exportBBSTemplate());
 };

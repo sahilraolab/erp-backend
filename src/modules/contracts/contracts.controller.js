@@ -48,24 +48,64 @@ exports.addLabourRate = async (req, res) => {
 /* ================= WORK ORDER ================= */
 
 exports.createWO = async (req, res) => {
-  const { lines, ...header } = req.body;
+  const { lines = [], ...header } = req.body;
 
-  const wo = await WorkOrder.create({
-    woNo: genNo('WO'),
-    ...header
-  });
-
-  for (const l of lines) {
-    await WorkOrderLine.create({
-      workOrderId: wo.id,
-      ...l
-    });
+  if (!lines.length) {
+    throw new Error('Work Order must have at least one line');
   }
 
-  await workflow.start({
-    module: 'CONTRACTS',
-    entity: 'WORK_ORDER',
-    recordId: wo.id
+  const wo = await withTx(async (t) => {
+
+    /* 🔒 HARD ENGINEERING CONTROLS */
+    await engineeringService.ensureComplianceClear(
+      header.projectId,
+      t
+    );
+
+    await engineeringService.ensureBudgetAvailable(
+      {
+        accountId: header.accountId,   // REQUIRED FIELD
+        amount: header.totalValue
+      },
+      t
+    );
+
+    /* CREATE WORK ORDER */
+    const wo = await WorkOrder.create(
+      {
+        woNo: genNo('WO'),
+        ...header
+      },
+      { transaction: t }
+    );
+
+    /* BOQ RESERVATION */
+    for (const l of lines) {
+
+      await engineeringService.consumeBBSQty(
+        {
+          bbsId: l.bbsId,
+          qty: l.qty
+        },
+        t
+      );
+
+      await WorkOrderLine.create(
+        {
+          workOrderId: wo.id,
+          ...l
+        },
+        { transaction: t }
+      );
+    }
+
+    await workflow.start({
+      module: 'CONTRACTS',
+      entity: 'WORK_ORDER',
+      recordId: wo.id
+    });
+
+    return wo;
   });
 
   res.json({
@@ -124,7 +164,11 @@ exports.reviseWO = async (req, res) => {
 /* ================= RA BILL ================= */
 
 exports.createRABill = async (req, res) => {
-  const { lines, ...header } = req.body;
+  const { lines = [], ...header } = req.body;
+
+  if (!lines.length) {
+    throw new Error('RA Bill must have at least one line');
+  }
 
   const existing = await RABill.findOne({
     where: {
@@ -138,46 +182,90 @@ exports.createRABill = async (req, res) => {
   }
 
   const bill = await withTx(async (t) => {
-    const bill = await RABill.create({
-      billNo: genNo('RA'),
-      billDate: new Date(),
-      ...header
-    }, { transaction: t });
+
+    /* FETCH WORK ORDER */
+    const wo = await WorkOrder.findByPk(header.workOrderId, {
+      transaction: t
+    });
+    if (!wo || wo.status !== 'APPROVED') {
+      throw new Error('Invalid or unapproved Work Order');
+    }
+
+    /* 🔒 HARD ENGINEERING CONTROLS */
+    await engineeringService.ensureComplianceClear(
+      wo.projectId,
+      t
+    );
+
+    await engineeringService.ensureBudgetAvailable(
+      {
+        accountId: header.accountId,
+        amount: header.grossAmount || 0
+      },
+      t
+    );
+
+    /* CREATE RA BILL */
+    const bill = await RABill.create(
+      {
+        billNo: genNo('RA'),
+        billDate: new Date(),
+        ...header
+      },
+      { transaction: t }
+    );
 
     let gross = 0;
 
+    /* PROCESS LINES */
     for (const l of lines) {
-      const wol = await WorkOrderLine.findByPk(l.workOrderLineId, {
-        transaction: t,
-        lock: t.LOCK.UPDATE
-      });
-      if (!wol) throw new Error('Invalid WO line');
 
-      // 🔒 SINGLE SOURCE OF TRUTH
-      await engineeringService.consumeBBSQty({
-        bbsId: wol.bbsId,
-        qty: l.currentQty
-      }, t);
+      const wol = await WorkOrderLine.findByPk(
+        l.workOrderLineId,
+        { transaction: t, lock: t.LOCK.UPDATE }
+      );
 
-      const newExecuted = Number(wol.executedQty) + Number(l.currentQty);
+      if (!wol) throw new Error('Invalid Work Order line');
+
+      /* 🔒 SINGLE SOURCE OF TRUTH */
+      await engineeringService.consumeBBSQty(
+        {
+          bbsId: wol.bbsId,
+          qty: l.currentQty
+        },
+        t
+      );
+
+      const newExecuted =
+        Number(wol.executedQty) + Number(l.currentQty);
+
       if (newExecuted > Number(wol.qty)) {
         throw new Error(`Over-billing detected for WO line ${wol.id}`);
       }
 
-      const line = await RABillLine.create({
-        raBillId: bill.id,
-        workOrderLineId: wol.id,
-        previousQty: l.previousQty || wol.executedQty,
-        currentQty: l.currentQty,
-        rate: wol.rate
-      }, { transaction: t });
+      const line = await RABillLine.create(
+        {
+          raBillId: bill.id,
+          workOrderLineId: wol.id,
+          previousQty: wol.executedQty,
+          currentQty: l.currentQty,
+          rate: wol.rate
+        },
+        { transaction: t }
+      );
 
-      await wol.update({ executedQty: newExecuted }, { transaction: t });
+      await wol.update(
+        { executedQty: newExecuted },
+        { transaction: t }
+      );
 
       gross += Number(line.amount);
     }
 
-    await bill.update({ grossAmount: gross }, { transaction: t });
+    await bill.update(
+      { grossAmount: gross },
+      { transaction: t }
+    );
 
     await workflow.start({
       module: 'CONTRACTS',
@@ -188,7 +276,10 @@ exports.createRABill = async (req, res) => {
     return bill;
   });
 
-  res.json({ bill, message: 'RA Bill sent for approval' });
+  res.json({
+    bill,
+    message: 'RA Bill sent for approval'
+  });
 };
 
 exports.approveRABill = async (req, res) => {
