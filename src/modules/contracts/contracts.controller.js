@@ -21,7 +21,7 @@ const engineeringService = require('../engineering/engineering.service');
 
 const withTx = require('../../core/withTransaction');
 
-const generateCode = require('../../core/codeGenerator'); 
+const generateCode = require('../../core/codeGenerator');
 
 
 // const genNo = (p) => `${p}-${Date.now()}`;
@@ -29,7 +29,19 @@ const generateCode = require('../../core/codeGenerator');
 /* ================= CONTRACTOR ================= */
 
 exports.createContractor = async (req, res) => {
-  const c = await Contractor.create(req.body);
+  const {
+    name,
+    gstNo,
+    contactPerson,
+    phone
+  } = req.body;
+
+  const c = await Contractor.create({
+    name,
+    gstNo,
+    contactPerson,
+    phone
+  });
 
   await audit({
     userId: req.user.id,
@@ -58,24 +70,23 @@ exports.createWO = async (req, res) => {
 
   const wo = await withTx(async (t) => {
 
-    /* 🔒 HARD ENGINEERING CONTROLS */
-    await engineeringService.ensureComplianceClear(
-      header.projectId,
-      t
-    );
-
+    await engineeringService.ensureComplianceClear(header.projectId, t);
     await engineeringService.ensureBudgetAvailable(
-      {
-        accountId: header.accountId,   // REQUIRED FIELD
-        amount: header.totalValue
-      },
+      { accountId: header.accountId, amount: header.totalValue },
       t
     );
 
-    /* CREATE WORK ORDER */
+    const code = await generateCode({
+      module: 'CONTRACTS',
+      entity: 'WORK_ORDER',
+      prefix: 'WO',
+      transaction: t,
+      projectId: header.projectId
+    });
+
     const wo = await WorkOrder.create(
       {
-        woNo: genNo('WO'),
+        woNo: code.formatted,
         ...header
       },
       { transaction: t }
@@ -208,9 +219,17 @@ exports.createRABill = async (req, res) => {
     );
 
     /* CREATE RA BILL */
+    const code = await generateCode({
+      module: 'CONTRACTS',
+      entity: 'RA_BILL',
+      prefix: 'RA',
+      transaction: t,
+      projectId: wo.projectId
+    });
+
     const bill = await RABill.create(
       {
-        billNo: genNo('RA'),
+        billNo: code.formatted,
         billDate: new Date(),
         ...header
       },
@@ -380,16 +399,30 @@ exports.createAdvance = async (req, res) => {
 /* ================= DEBIT / CREDIT ================= */
 
 exports.createDCNote = async (req, res) => {
-  const note = await DCNote.create({
-    noteNo: genNo('DC'),
-    createdBy: req.user.id,
-    ...req.body
-  });
+  const note = await withTx(async (t) => {
+    const code = await generateCode({
+      module: 'CONTRACTS',
+      entity: 'DC_NOTE',
+      prefix: 'DC',
+      transaction: t,
+      companyId: req.user.companyId
+    });
 
-  await workflow.start({
-    module: 'CONTRACTS',
-    entity: 'DC_NOTE',
-    recordId: note.id
+    const n = await DCNote.create(
+      {
+        noteNo: code.formatted,
+        createdBy: req.user.id,
+        ...req.body
+      },
+      { transaction: t }
+    );
+
+    await workflow.start(
+      { module: 'CONTRACTS', entity: 'DC_NOTE', recordId: n.id },
+      t
+    );
+
+    return n;
   });
 
   res.json(note);
