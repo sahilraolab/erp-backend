@@ -21,7 +21,7 @@ module.exports = (app) => {
   app.use('/supplier', require('./modules/supplier/supplier.routes'));
   app.use('/inventory', require('./modules/inventory/inventory.routes'));
   app.use('/site', require('./modules/site/site.routes'));
-  app.use('/qaqc', require('./modules/qaqc/qaqc.routes'));
+  // app.use('/qaqc', require('./modules/qaqc/qaqc.routes'));
 
   /* ================= CONTRACTS ================= */
 
@@ -33,24 +33,10 @@ module.exports = (app) => {
   app.use('/accounts/reports', require('./modules/accounts/report.routes'));
   app.use('/tax', require('./modules/tax/tax.routes'));
   app.use('/statutory', require('./modules/statutory/statutory.routes'));
-  app.use('/consolidation', require('./modules/consolidation/consolidation.routes'));
-
-  /* ================= ANALYTICS & MIS ================= */
-
-  app.use('/mis', require('./modules/mis/mis.routes'));
-  app.use('/dashboard', require('./modules/dashboard/dashboard.routes'));
-  // app.use('/analytics', require('./modules/analytics/analytics.routes'));
-  // app.use('/forecast', require('./modules/forecasting/forecast.routes'));
 
   /* ================= AUTOMATION & AI ================= */
 
   app.use('/workflow', require('./modules/workflow/workflow.routes'));
-  app.use('/automation', require('./modules/automation/automation.routes'));
-  // app.use('/ai', require('./modules/ai/ai.routes'));
-
-  /* ================= REPORT ENGINE ================= */
-
-  app.use('/reports', require('./modules/reporting/report.routes'));
 
   /* ================= GLOBAL ERROR HANDLER ================= */
 

@@ -64,7 +64,17 @@ const BBS = sequelize.define(
 /* ✅ MUST BE beforeValidate (NOT beforeCreate) */
 BBS.beforeValidate(async (bbs, options) => {
   if (!bbs.code) {
-    bbs.code = await generateCode('BBS', 'bbs', options.transaction);
+    if (!options.transaction) {
+      throw new Error('Transaction is required for BBS code generation');
+    }
+
+    bbs.code = await generateCode({
+      module: 'ENGINEERING',
+      entity: 'BBS',
+      prefix: 'BBS',
+      transaction: options.transaction,
+      projectId: bbs.projectId
+    });
   }
 });
 

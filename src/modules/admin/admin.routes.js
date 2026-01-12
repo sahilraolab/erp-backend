@@ -25,7 +25,8 @@ router.put(
 /* ================= ROLES & PERMISSIONS ================= */
 router.post(
   "/roles",
-  auth("admin.roles.manage"),
+  // auth("admin.roles.manage"),
+  auth("admin.roles.super"),
   ctrl.createRole
 );
 

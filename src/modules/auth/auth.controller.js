@@ -31,7 +31,7 @@ exports.login = async (req, res) => {
       supplierId: user.supplierId || null
     },
     process.env.JWT_SECRET,
-    { expiresIn: '1d' }
+    { expiresIn: process.env.JWT_EXPIRY || '1d' }
   );
 
   await audit({
@@ -68,6 +68,8 @@ exports.forgotPassword = async (req, res) => {
   }
 
   const token = crypto.randomBytes(32).toString("hex");
+
+  await PasswordReset.destroy({ where: { userId: user.id } });
 
   await PasswordReset.create({
     userId: user.id,

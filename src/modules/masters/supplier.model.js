@@ -82,9 +82,19 @@ const Supplier = sequelize.define('supplier', {
   }
 });
 
-Supplier.beforeValidate(async (supplier) => {
+/* ✅ Enterprise-safe code generation */
+Supplier.beforeValidate(async (supplier, options) => {
   if (!supplier.code) {
-    supplier.code = await generateCode('SUP', 'suppliers');
+    if (!options.transaction) {
+      throw new Error('Transaction is required for Supplier code generation');
+    }
+
+    supplier.code = await generateCode({
+      module: 'MASTERS',
+      entity: 'SUPPLIER',
+      prefix: 'SUP',
+      transaction: options.transaction
+    });
   }
 });
 

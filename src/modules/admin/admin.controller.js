@@ -52,12 +52,38 @@ exports.getUsers = async (req, res) => {
 };
 
 exports.updateUser = async (req, res) => {
-  if (+req.params.id === req.user.id) {
-    return res.status(400).json({ message: "Cannot modify yourself" });
-  }
 
   const allowed = ["name", "isActive", "roleId", "phone"];
   const updates = {};
+
+  // Prevent disabling last SUPER_ADMIN
+  if (updates.isActive === false) {
+    const activeAdmins = await User.count({
+      include: {
+        model: Role,
+        where: { name: 'SUPER_ADMIN' }
+      },
+      where: { isActive: true }
+    });
+
+    if (activeAdmins <= 1) {
+      return res.status(400).json({ message: 'Cannot disable last SUPER_ADMIN' });
+    }
+  }
+
+  // Prevent role downgrade of last SUPER_ADMIN
+  if (updates.roleId) {
+    const targetUser = await User.findByPk(req.params.id, {
+      include: Role
+    });
+
+    if (
+      targetUser.role.name === 'SUPER_ADMIN' &&
+      updates.roleId !== targetUser.roleId
+    ) {
+      return res.status(400).json({ message: 'Cannot change role of SUPER_ADMIN' });
+    }
+  }
 
   allowed.forEach(k => {
     if (req.body[k] !== undefined) updates[k] = req.body[k];
@@ -78,7 +104,15 @@ exports.updateUser = async (req, res) => {
 /* ================= ROLES ================= */
 
 exports.createRole = async (req, res) => {
-  const role = await Role.create({ name: req.body.name });
+
+  if (req.user.role.name !== 'SUPER_ADMIN') {
+    return res.status(403).json({ message: 'Only SUPER_ADMIN can manage roles' });
+  }
+
+  const name = req.body.name?.toUpperCase().trim();
+  if (!name) return res.status(400).json({ message: 'Role name required' });
+
+  const role = await Role.create({ name: name });
 
   await audit({
     userId: req.user.id,
@@ -95,6 +129,11 @@ exports.getRoles = async (req, res) => {
 };
 
 exports.assignPermissions = async (req, res) => {
+
+  if (req.user.role.name !== 'SUPER_ADMIN') {
+    return res.status(403).json({ message: 'Only SUPER_ADMIN can manage roles' });
+  }
+
   const role = await Role.findByPk(req.params.id);
   if (!role) return res.status(404).json({ message: "Role not found" });
 

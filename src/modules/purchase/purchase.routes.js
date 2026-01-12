@@ -50,6 +50,12 @@ router.get(
   ctrl.listRFQs
 );
 
+router.get(
+  '/rfqs/:id',
+  auth('purchase.view'),
+  ctrl.getRFQ
+);
+
 /* =====================================================
    QUOTATION (MANUAL BY PURCHASE)
 ===================================================== */

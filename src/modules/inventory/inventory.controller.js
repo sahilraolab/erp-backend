@@ -1,5 +1,6 @@
 const audit = require('../../core/audit');
 const withTx = require('../../core/withTransaction');
+const workflow = require('../workflow/workflow.service');
 
 const GRN = require('./grn.model');
 const GRNLine = require('./grnLine.model');
@@ -11,6 +12,8 @@ const MaterialIssueLine = require('./materialIssueLine.model');
 
 const StockTransfer = require('./stockTransfer.model');
 const StockTransferLine = require('./stockTransferLine.model');
+
+const POLine = require('../purchase/poLine.model');
 
 const { ensureApproved } = require('../workflow/workflow.helper');
 
@@ -37,6 +40,10 @@ exports.createGRN = async (req, res) => {
     );
 
     for (const l of lines) {
+      if (l.acceptedQty <= 0) {
+        throw new Error('Accepted qty must be > 0');
+      }
+
       await GRNLine.create(
         {
           grnId: header.id,
@@ -51,6 +58,15 @@ exports.createGRN = async (req, res) => {
       );
     }
 
+    await workflow.start(
+      {
+        module: 'INVENTORY',
+        entity: 'GRN',
+        recordId: header.id
+      },
+      t
+    );
+
     return header;
   });
 
@@ -58,7 +74,8 @@ exports.createGRN = async (req, res) => {
     userId: req.user.id,
     action: 'CREATE_GRN',
     module: 'INVENTORY',
-    recordId: grn.id
+    recordId: grn.id,
+    meta: { projectId }
   });
 
   res.json(grn);
@@ -66,10 +83,11 @@ exports.createGRN = async (req, res) => {
 
 /* ================= APPROVE GRN ================= */
 
-
 exports.approveGRN = async (req, res) => {
   let fullyAccepted = true;
   const grnId = req.params.id;
+
+  await ensureApproved('INVENTORY', 'GRN', grnId);
 
   await withTx(async (t) => {
     const grn = await GRN.findByPk(grnId, {
@@ -87,6 +105,30 @@ exports.approveGRN = async (req, res) => {
     });
 
     for (const line of lines) {
+      if (line.acceptedQty <= 0) {
+        throw new Error('Accepted qty must be > 0');
+      }
+
+      if (Number(line.acceptedQty) > Number(line.receivedQty)) {
+        throw new Error('Accepted qty cannot exceed received qty');
+      }
+
+      const totalReceived = await GRNLine.sum('acceptedQty', {
+        where: { poLineId: line.poLineId },
+        transaction: t
+      });
+
+      const cumulativeAccepted =
+        Number(totalReceived || 0) + Number(line.acceptedQty);
+
+      if (cumulativeAccepted > Number(line.orderedQty)) {
+        throw new Error('GRN exceeds ordered PO quantity');
+      }
+
+      if (cumulativeAccepted < Number(line.orderedQty)) {
+        fullyAccepted = false;
+      }
+
       let stock = await Stock.findOne({
         where: {
           projectId: grn.projectId,
@@ -109,45 +151,42 @@ exports.approveGRN = async (req, res) => {
         );
       }
 
-      if (line.acceptedQty > line.receivedQty) {
-        throw new Error('Accepted qty cannot exceed received qty');
-      }
+      stock.quantity += Number(line.acceptedQty);
+      await stock.save({ transaction: t });
 
-      if (Number(line.acceptedQty) < Number(line.orderedQty)) {
-        fullyAccepted = false;
-      }
+      await StockLedger.create(
+        {
+          projectId: grn.projectId,
+          locationId: grn.locationId,
+          materialId: line.materialId,
+          refType: 'GRN',
+          refId: grn.id,
+          qtyIn: line.acceptedQty,
+          balanceQty: stock.quantity
+        },
+        { transaction: t }
+      );
 
-      if (Number(line.acceptedQty) > 0) {
-        stock.quantity += Number(line.acceptedQty);
-        await stock.save({ transaction: t });
-
-        await StockLedger.create(
-          {
-            projectId: grn.projectId,
-            locationId: grn.locationId,
-            materialId: line.materialId,
-            refType: 'GRN',
-            refId: grn.id,
-            qtyIn: line.acceptedQty,
-            balanceQty: stock.quantity
-          },
-          { transaction: t }
-        );
-      }
+      await POLine.increment(
+        { receivedQty: line.acceptedQty },
+        { where: { id: line.poLineId }, transaction: t }
+      );
     }
 
     await grn.update(
       { status: fullyAccepted ? 'APPROVED' : 'PARTIAL_APPROVED' },
       { transaction: t }
     );
-
   });
+
+  const grn = await GRN.findByPk(grnId);
 
   await audit({
     userId: req.user.id,
     action: 'APPROVE_GRN',
     module: 'INVENTORY',
-    recordId: grnId
+    recordId: grnId,
+    meta: { projectId: grn.projectId }
   });
 
   res.json({ success: true });
@@ -155,7 +194,7 @@ exports.approveGRN = async (req, res) => {
 
 /* ================= ISSUE MATERIAL ================= */
 
-exports.issueMaterial = async (req, res) => {
+exports.createMaterialIssue = async (req, res) => {
   const { projectId, fromLocationId, purpose, lines } = req.body;
 
   const issue = await withTx(async (t) => {
@@ -167,28 +206,15 @@ exports.issueMaterial = async (req, res) => {
         issuedBy: req.user.id,
         issuedTo: req.user.id,
         purpose,
-        status: 'APPROVED'
+        status: 'DRAFT'
       },
       { transaction: t }
     );
 
     for (const l of lines) {
-      const stock = await Stock.findOne({
-        where: {
-          projectId,
-          locationId: fromLocationId,
-          materialId: l.materialId
-        },
-        transaction: t,
-        lock: t.LOCK.UPDATE
-      });
-
-      if (!stock || stock.quantity < l.issuedQty) {
-        throw new Error('Insufficient stock');
+      if (l.issuedQty <= 0) {
+        throw new Error('Issued qty must be > 0');
       }
-
-      stock.quantity -= l.issuedQty;
-      await stock.save({ transaction: t });
 
       await MaterialIssueLine.create(
         {
@@ -198,36 +224,39 @@ exports.issueMaterial = async (req, res) => {
         },
         { transaction: t }
       );
-
-      await StockLedger.create(
-        {
-          projectId,
-          locationId: fromLocationId,
-          materialId: l.materialId,
-          refType: 'ISSUE',
-          refId: header.id,
-          qtyOut: l.issuedQty,
-          balanceQty: stock.quantity
-        },
-        { transaction: t }
-      );
     }
+
+    await workflow.start(
+      {
+        module: 'INVENTORY',
+        entity: 'ISSUE',
+        recordId: header.id
+      },
+      t
+    );
 
     return header;
   });
 
   await audit({
     userId: req.user.id,
-    action: 'ISSUE_MATERIAL',
+    action: 'CREATE_MATERIAL_ISSUE',
     module: 'INVENTORY',
-    recordId: issue.id
+    recordId: issue.id,
+    meta: { projectId }
   });
 
   res.json(issue);
 };
 
-exports.transferStock = async (req, res) => {
+/* ================= TRANSFER STOCK ================= */
+
+exports.createStockTransfer = async (req, res) => {
   const { projectId, fromLocationId, toLocationId, lines } = req.body;
+
+  if (fromLocationId === toLocationId) {
+    throw new Error('From and To location cannot be same');
+  }
 
   const transfer = await withTx(async (t) => {
     const header = await StockTransfer.create(
@@ -237,76 +266,50 @@ exports.transferStock = async (req, res) => {
         fromLocationId,
         toLocationId,
         requestedBy: req.user.id,
-        approvedBy: req.user.id,
-        status: 'APPROVED'
+        status: 'DRAFT'
       },
       { transaction: t }
     );
 
     for (const l of lines) {
-      const fromStock = await Stock.findOne({
-        where: { projectId, locationId: fromLocationId, materialId: l.materialId },
-        transaction: t,
-        lock: t.LOCK.UPDATE
-      });
-
-      if (!fromStock || fromStock.quantity < l.transferQty) {
-        throw new Error('Insufficient stock for transfer');
+      if (l.transferQty <= 0) {
+        throw new Error('Transfer qty must be > 0');
       }
 
-      let toStock = await Stock.findOne({
-        where: { projectId, locationId: toLocationId, materialId: l.materialId },
-        transaction: t,
-        lock: t.LOCK.UPDATE
-      });
-
-      if (!toStock) {
-        toStock = await Stock.create(
-          { projectId, locationId: toLocationId, materialId: l.materialId, quantity: 0 },
-          { transaction: t }
-        );
-      }
-
-      fromStock.quantity -= l.transferQty;
-      toStock.quantity += l.transferQty;
-
-      await fromStock.save({ transaction: t });
-      await toStock.save({ transaction: t });
-
-      await StockLedger.create({
-        projectId,
-        locationId: fromLocationId,
-        materialId: l.materialId,
-        refType: 'TRANSFER',
-        refId: header.id,
-        qtyOut: l.transferQty,
-        balanceQty: fromStock.quantity
-      }, { transaction: t });
-
-      await StockLedger.create({
-        projectId,
-        locationId: toLocationId,
-        materialId: l.materialId,
-        refType: 'TRANSFER',
-        refId: header.id,
-        qtyIn: l.transferQty,
-        balanceQty: toStock.quantity
-      }, { transaction: t });
-
+      await StockTransferLine.create(
+        {
+          transferId: header.id,
+          materialId: l.materialId,
+          transferQty: l.transferQty
+        },
+        { transaction: t }
+      );
     }
+
+    await workflow.start(
+      {
+        module: 'INVENTORY',
+        entity: 'TRANSFER',
+        recordId: header.id
+      },
+      t
+    );
 
     return header;
   });
 
   await audit({
     userId: req.user.id,
-    action: 'TRANSFER_STOCK',
+    action: 'CREATE_STOCK_TRANSFER',
     module: 'INVENTORY',
-    recordId: transfer.id
+    recordId: transfer.id,
+    meta: { projectId }
   });
 
   res.json(transfer);
 };
+
+/* ================= CANCEL MATERIAL ISSUE ================= */
 
 exports.cancelMaterialIssue = async (req, res) => {
   const issueId = req.params.id;
@@ -369,11 +372,14 @@ exports.cancelMaterialIssue = async (req, res) => {
     await issue.update({ status: 'CANCELLED' }, { transaction: t });
   });
 
+  const issue = await MaterialIssue.findByPk(issueId);
+
   await audit({
     userId: req.user.id,
     action: 'CANCEL_MATERIAL_ISSUE',
     module: 'INVENTORY',
-    recordId: issueId
+    recordId: issueId,
+    meta: { projectId: issue.projectId }
   });
 
   res.json({ success: true });
@@ -400,9 +406,7 @@ exports.getLedger = async (req, res) => {
   res.json(
     await StockLedger.findAll({
       where,
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'ASC']]
     })
   );
 };
-
-// TODO: support QC_REJECTED and PARTIAL_APPROVED

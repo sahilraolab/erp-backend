@@ -58,9 +58,19 @@ const Project = sequelize.define('project', {
   }
 });
 
-Project.beforeValidate(async (project) => {
+/* ✅ Enterprise-safe code generation */
+Project.beforeValidate(async (project, options) => {
   if (!project.code) {
-    project.code = await generateCode('PRJ', 'projects');
+    if (!options.transaction) {
+      throw new Error('Transaction is required for Project code generation');
+    }
+
+    project.code = await generateCode({
+      module: 'MASTERS',
+      entity: 'PROJECT',
+      prefix: 'PRJ',
+      transaction: options.transaction
+    });
   }
 });
 

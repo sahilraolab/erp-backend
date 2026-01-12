@@ -11,6 +11,11 @@ const Tax = require('./tax.model');
 
 /**
  * Generic CRUD factory for Masters
+ * Enforces:
+ * - Soft delete only
+ * - Protected fields per model
+ * - Safe create (no raw body injection)
+ * - Audit logging
  */
 const crud = (Model, moduleName, options = {}) => {
   const {
@@ -21,7 +26,12 @@ const crud = (Model, moduleName, options = {}) => {
   return {
     create: async (req, res, next) => {
       try {
-        const record = await Model.create(req.body);
+        // 🔒 Prevent client-side master corruption
+        const data = { ...req.body };
+        delete data.id;
+        delete data.isActive;
+
+        const record = await Model.create(data);
 
         await audit({
           userId: req.user.id,
@@ -39,7 +49,13 @@ const crud = (Model, moduleName, options = {}) => {
     list: async (req, res, next) => {
       try {
         const where = {};
-        if ('isActive' in Model.rawAttributes) {
+
+        // ✅ Default: only active
+        // 🟡 Admin override: ?includeInactive=true
+        if (
+          !req.query.includeInactive &&
+          'isActive' in Model.rawAttributes
+        ) {
           where.isActive = true;
         }
 
@@ -78,8 +94,10 @@ const crud = (Model, moduleName, options = {}) => {
           return res.status(404).json({ message: 'Record not found' });
         }
 
-        // Strip protected fields
-        protectedFields.forEach(field => delete req.body[field]);
+        // 🔒 Strip protected fields
+        protectedFields.forEach(field => {
+          delete req.body[field];
+        });
 
         await record.update(req.body);
 
@@ -103,7 +121,8 @@ const crud = (Model, moduleName, options = {}) => {
           return res.status(404).json({ message: 'Record not found' });
         }
 
-        if ('isActive' in record) {
+        // ✅ Correct soft delete check
+        if ('isActive' in Model.rawAttributes) {
           record.isActive = false;
           await record.save();
         } else {
@@ -128,24 +147,39 @@ const crud = (Model, moduleName, options = {}) => {
 };
 
 module.exports = {
-  company: crud(Company, 'COMPANY'),
+  company: crud(Company, 'COMPANY', {
+    protectedFields: ['code', 'country', 'currency', 'isActive']
+  }),
 
   project: crud(Project, 'PROJECT', {
     listInclude: {
       model: Company,
       attributes: ['id', 'name', 'code']
-    }
+    },
+    protectedFields: ['code', 'companyId', 'isActive']
   }),
 
-  material: crud(Material, 'MATERIAL'),
+  material: crud(Material, 'MATERIAL', {
+    protectedFields: ['code', 'isActive']
+  }),
 
-  supplier: crud(Supplier, 'SUPPLIER'),
+  supplier: crud(Supplier, 'SUPPLIER', {
+    protectedFields: ['code', 'isActive']
+  }),
 
-  uom: crud(UOM, 'UOM'),
+  uom: crud(UOM, 'UOM', {
+    protectedFields: ['code', 'isActive']
+  }),
 
-  department: crud(Department, 'DEPARTMENT'),
+  department: crud(Department, 'DEPARTMENT', {
+    protectedFields: ['code', 'isActive']
+  }),
 
-  costCenter: crud(CostCenter, 'COST_CENTER'),
+  costCenter: crud(CostCenter, 'COST_CENTER', {
+    protectedFields: ['code', 'isActive']
+  }),
 
-  tax: crud(Tax, 'TAX')
+  tax: crud(Tax, 'TAX', {
+    protectedFields: ['code', 'type', 'isActive']
+  })
 };

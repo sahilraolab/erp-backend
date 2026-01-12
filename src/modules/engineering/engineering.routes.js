@@ -144,8 +144,8 @@ router.get(
 
 router.post(
   '/drawings',
-  upload.single('file'),
   auth('engineering.create'),
+  upload.single('file'),
   ctrl.createDrawing
 );
 

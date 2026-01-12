@@ -21,8 +21,10 @@ const engineeringService = require('../engineering/engineering.service');
 
 const withTx = require('../../core/withTransaction');
 
+const generateCode = require('../../core/codeGenerator'); 
 
-const genNo = (p) => `${p}-${Date.now()}`;
+
+// const genNo = (p) => `${p}-${Date.now()}`;
 
 /* ================= CONTRACTOR ================= */
 

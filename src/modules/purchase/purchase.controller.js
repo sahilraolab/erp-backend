@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const audit = require('../../core/audit');
 const withTx = require('../../core/withTransaction');
 
@@ -46,30 +47,53 @@ exports.createRequisition = async (req, res) => {
     projectId,
     budgetId,
     estimateId,
-    requestedBy: req.user.id
+    requestedBy: req.user.id,
+    status: 'DRAFT'
   });
 
   await audit({
     userId: req.user.id,
     action: 'CREATE_MR',
     module: 'PURCHASE',
-    recordId: rec.id
+    recordId: rec.id,
+    meta: { projectId }
   });
 
   res.json(rec);
 };
 
 exports.submitRequisition = async (req, res) => {
-  await Requisition.update(
-    { status: 'SUBMITTED', submittedAt: new Date() },
-    { where: { id: req.params.id } }
-  );
+  await withTx(async (t) => {
+    const rec = await Requisition.findByPk(req.params.id, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
 
-  await audit({
-    userId: req.user.id,
-    action: 'SUBMIT_MR',
-    module: 'PURCHASE',
-    recordId: req.params.id
+    if (!rec || rec.status !== 'DRAFT') {
+      throw new Error('Only DRAFT requisition can be submitted');
+    }
+
+    await rec.update(
+      { status: 'SUBMITTED', submittedAt: new Date() },
+      { transaction: t }
+    );
+
+    await workflow.start(
+      {
+        module: 'PURCHASE',
+        entity: 'MR',
+        recordId: rec.id
+      },
+      t
+    );
+
+    await audit({
+      userId: req.user.id,
+      action: 'SUBMIT_MR',
+      module: 'PURCHASE',
+      recordId: rec.id,
+      meta: { projectId: rec.projectId }
+    });
   });
 
   res.json({ success: true });
@@ -92,22 +116,40 @@ exports.getRequisition = async (req, res) => {
 };
 
 /* =====================================================
-   RFQ (GLOBAL)
+   RFQ
 ===================================================== */
 
 exports.createRFQ = async (req, res) => {
-  const rfq = await RFQ.create({
-    rfqNo: genNo('RFQ'),
-    requisitionId: req.body.requisitionId,
-    closingDate: req.body.closingDate,
-    attachmentPath: req.file ? req.file.path : null
-  });
+  const rfq = await withTx(async (t) => {
+    const mr = await Requisition.findByPk(req.body.requisitionId, {
+      transaction: t
+    });
 
-  await audit({
-    userId: req.user.id,
-    action: 'CREATE_RFQ',
-    module: 'PURCHASE',
-    recordId: rfq.id
+    if (!mr || mr.status !== 'APPROVED') {
+      throw new Error('Approved requisition required');
+    }
+
+    const rfq = await RFQ.create(
+      {
+        rfqNo: genNo('RFQ'),
+        requisitionId: mr.id,
+        projectId: mr.projectId,
+        closingDate: req.body.closingDate,
+        status: 'OPEN',
+        attachmentPath: req.file ? req.file.path : null
+      },
+      { transaction: t }
+    );
+
+    await audit({
+      userId: req.user.id,
+      action: 'CREATE_RFQ',
+      module: 'PURCHASE',
+      recordId: rfq.id,
+      meta: { projectId: mr.projectId }
+    });
+
+    return rfq;
   });
 
   res.json(rfq);
@@ -115,7 +157,6 @@ exports.createRFQ = async (req, res) => {
 
 exports.listRFQs = async (req, res) => {
   const { requisitionId } = req.query;
-
   res.json(
     await RFQ.findAll({
       where: requisitionId ? { requisitionId } : {},
@@ -129,44 +170,86 @@ exports.listRFQs = async (req, res) => {
 ===================================================== */
 
 exports.submitQuotation = async (req, res) => {
-  const quotation = await Quotation.create({
-    ...req.body,
-    attachmentPath: req.file ? req.file.path : null
-  });
+  const quotation = await withTx(async (t) => {
+    const rfq = await RFQ.findByPk(req.body.rfqId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
 
-  await audit({
-    userId: req.user.id,
-    action: 'SUBMIT_QUOTATION',
-    module: 'PURCHASE',
-    recordId: quotation.id
+    if (!rfq || rfq.status !== 'OPEN') {
+      throw new Error('RFQ is closed');
+    }
+
+    if (req.user.supplierId !== req.body.supplierId) {
+      throw new Error('Invalid supplier');
+    }
+
+    const quotation = await Quotation.create(
+      {
+        ...req.body,
+        status: 'SUBMITTED',
+        attachmentPath: req.file ? req.file.path : null
+      },
+      { transaction: t }
+    );
+
+    await audit({
+      userId: req.user.id,
+      action: 'SUBMIT_QUOTATION',
+      module: 'PURCHASE',
+      recordId: quotation.id,
+      meta: { projectId: rfq.projectId }
+    });
+
+    return quotation;
   });
 
   res.json(quotation);
 };
 
-
 exports.approveQuotation = async (req, res) => {
-  const quotation = await Quotation.findByPk(req.params.id);
-  if (!quotation) {
-    return res.status(404).json({ message: 'Quotation not found' });
-  }
+  await withTx(async (t) => {
+    const quotation = await Quotation.findByPk(req.params.id, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
 
-  await quotation.update({
-    status: 'APPROVED',
-    approvedAt: new Date(),
-    approvedBy: req.user.id
-  });
+    if (!quotation) {
+      throw new Error('Quotation not found');
+    }
 
-  await RFQ.update(
-    { status: 'CLOSED' },
-    { where: { id: quotation.rfqId } }
-  );
+    await quotation.update(
+      {
+        status: 'APPROVED',
+        approvedAt: new Date(),
+        approvedBy: req.user.id
+      },
+      { transaction: t }
+    );
 
-  await audit({
-    userId: req.user.id,
-    action: 'APPROVE_QUOTATION',
-    module: 'PURCHASE',
-    recordId: quotation.id
+    await Quotation.update(
+      { status: 'REJECTED' },
+      {
+        where: {
+          rfqId: quotation.rfqId,
+          id: { [Op.ne]: quotation.id }
+        },
+        transaction: t
+      }
+    );
+
+    await RFQ.update(
+      { status: 'CLOSED' },
+      { where: { id: quotation.rfqId }, transaction: t }
+    );
+
+    await audit({
+      userId: req.user.id,
+      action: 'APPROVE_QUOTATION',
+      module: 'PURCHASE',
+      recordId: quotation.id,
+      meta: { projectId: quotation.projectId }
+    });
   });
 
   res.json({ success: true });
@@ -189,48 +272,67 @@ exports.getQuotation = async (req, res) => {
 };
 
 /* =====================================================
-   PURCHASE ORDER (PO)
+   PURCHASE ORDER
 ===================================================== */
 
 exports.createPO = async (req, res) => {
-  const existing = await PO.findOne({
-    where: { quotationId: req.body.quotationId }
-  });
-  if (existing) {
-    return res.status(400).json({
-      message: 'PO already exists for this quotation'
+  const po = await withTx(async (t) => {
+    const quotation = await Quotation.findByPk(req.body.quotationId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
     });
-  }
 
-  const quotation = await Quotation.findByPk(req.body.quotationId);
-  if (!quotation || quotation.status !== 'APPROVED') {
-    return res.status(400).json({ message: 'Approved quotation required' });
-  }
+    if (!quotation || quotation.status !== 'APPROVED') {
+      throw new Error('Approved quotation required');
+    }
 
-  await ensureComplianceClear(quotation.projectId);
+    const existing = await PO.findOne({
+      where: { quotationId: quotation.id },
+      transaction: t
+    });
 
-  const po = await PO.create({
-    poNo: genNo('PO'),
-    projectId: quotation.projectId,
-    budgetId: quotation.budgetId,
-    estimateId: quotation.estimateId,
-    quotationId: quotation.id,
-    supplierId: quotation.supplierId,
-    totalAmount: quotation.totalAmount,
-    attachmentPath: req.file ? req.file.path : null
-  });
+    if (existing) {
+      throw new Error('PO already exists for this quotation');
+    }
 
-  await workflow.start({
-    module: 'PURCHASE',
-    entity: 'PO',
-    recordId: po.id
-  });
+    await ensureComplianceClear(quotation.projectId);
+    await ensureBudgetAvailable(
+      { budgetHeadId: quotation.budgetId, amount: quotation.totalAmount },
+      t
+    );
 
-  await audit({
-    userId: req.user.id,
-    action: 'CREATE_PO',
-    module: 'PURCHASE',
-    recordId: po.id
+    const po = await PO.create(
+      {
+        poNo: genNo('PO'),
+        projectId: quotation.projectId,
+        budgetId: quotation.budgetId,
+        estimateId: quotation.estimateId,
+        quotationId: quotation.id,
+        supplierId: quotation.supplierId,
+        totalAmount: quotation.totalAmount,
+        attachmentPath: req.file ? req.file.path : null
+      },
+      { transaction: t }
+    );
+
+    await workflow.start(
+      {
+        module: 'PURCHASE',
+        entity: 'PO',
+        recordId: po.id
+      },
+      t
+    );
+
+    await audit({
+      userId: req.user.id,
+      action: 'CREATE_PO',
+      module: 'PURCHASE',
+      recordId: po.id,
+      meta: { projectId: po.projectId }
+    });
+
+    return po;
   });
 
   res.json({ po });
@@ -257,51 +359,76 @@ exports.getPO = async (req, res) => {
 ===================================================== */
 
 exports.createPurchaseBill = async (req, res) => {
-  const { grnId, basicAmount, taxAmount } = req.body;
+  const bill = await withTx(async (t) => {
+    const { grnId, poId, basicAmount, taxAmount } = req.body;
+    const totalAmount = basicAmount + taxAmount;
 
-  const grn = await GRN.findByPk(grnId);
-  if (!grn || grn.status !== 'APPROVED') {
-    return res.status(400).json({ message: 'GRN not approved' });
-  }
+    const grn = await GRN.findByPk(grnId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
 
-  if (grn.billed) {
-    return res.status(400).json({ message: 'GRN already billed' });
-  }
+    if (!grn || grn.status !== 'APPROVED' || grn.billed) {
+      throw new Error('Invalid GRN');
+    }
 
-  const po = await PO.findByPk(req.body.poId);
-  if (!po || po.status !== 'APPROVED') {
-    return res.status(400).json({ message: 'Approved PO required' });
-  }
+    const po = await PO.findByPk(poId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
 
-  await ensureComplianceClear(po.projectId);
+    if (!po || po.status !== 'APPROVED') {
+      throw new Error('Approved PO required');
+    }
 
-  const bill = await PurchaseBill.create({
-    billNo: genNo('PB'),
-    projectId: po.projectId,
-    budgetId: po.budgetId,
-    estimateId: po.estimateId,
-    poId: po.id,
-    grnId,
-    supplierId: po.supplierId,
-    basicAmount,
-    taxAmount,
-    totalAmount: basicAmount + taxAmount,
-    attachmentPath: req.file ? req.file.path : null
-  });
+    const billed = await PurchaseBill.sum('totalAmount', {
+      where: { poId: po.id },
+      transaction: t
+    });
 
-  await grn.update({ billed: true });
+    if ((billed || 0) + totalAmount > po.totalAmount) {
+      throw new Error('Billing exceeds PO value');
+    }
 
-  await workflow.start({
-    module: 'PURCHASE',
-    entity: 'PURCHASE_BILL',
-    recordId: bill.id
-  });
+    await ensureComplianceClear(po.projectId);
 
-  await audit({
-    userId: req.user.id,
-    action: 'CREATE_PURCHASE_BILL',
-    module: 'PURCHASE',
-    recordId: bill.id
+    const bill = await PurchaseBill.create(
+      {
+        billNo: genNo('PB'),
+        projectId: po.projectId,
+        budgetId: po.budgetId,
+        estimateId: po.estimateId,
+        poId: po.id,
+        grnId,
+        supplierId: po.supplierId,
+        basicAmount,
+        taxAmount,
+        totalAmount,
+        attachmentPath: req.file ? req.file.path : null
+      },
+      { transaction: t }
+    );
+
+    await grn.update({ billed: true }, { transaction: t });
+
+    await workflow.start(
+      {
+        module: 'PURCHASE',
+        entity: 'PURCHASE_BILL',
+        recordId: bill.id
+      },
+      t
+    );
+
+    await audit({
+      userId: req.user.id,
+      action: 'CREATE_PURCHASE_BILL',
+      module: 'PURCHASE',
+      recordId: bill.id,
+      meta: { projectId: po.projectId }
+    });
+
+    return bill;
   });
 
   res.json({ bill });
@@ -372,7 +499,8 @@ exports.postPurchaseBill = async (req, res) => {
     userId: req.user.id,
     action: 'POST_PURCHASE_BILL',
     module: 'PURCHASE',
-    recordId: billId
+    recordId: billId,
+    meta: {}
   });
 
   res.json({ success: true });

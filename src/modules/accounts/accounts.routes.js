@@ -30,5 +30,28 @@ router.post(
   ctrl.runInterest
 );
 
+router.get(
+  '/accounts',
+  auth('accounts.report'),
+  ctrl.listAccounts
+);
+
+router.get(
+  '/accounts/:id',
+  auth('accounts.report'),
+  ctrl.getAccount
+);
+
+router.get(
+  '/vouchers',
+  auth('accounts.report'),
+  ctrl.listVouchers
+);
+
+router.get(
+  '/vouchers/:id',
+  auth('accounts.report'),
+  ctrl.getVoucher
+);
 
 module.exports = router;

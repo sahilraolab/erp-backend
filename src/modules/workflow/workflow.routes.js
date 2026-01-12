@@ -1,46 +1,35 @@
+// src/modules/workflow/workflow.routes.js
+
 const router = require('express').Router();
 const auth = require('../../core/auth.middleware');
-const service = require('./workflow.service');
-const Instance = require('./workflowInstance.model');
-const Action = require('./workflowAction.model');
-const Workflow = require('./workflow.model');
+const ctrl = require('./workflow.controller');
+
+/* =====================================================
+   WORKFLOW ACTION
+===================================================== */
 
 router.post(
   '/action',
   auth('workflow.action'),
-  async (req, res) => {
-    const { instanceId, action, remarks } = req.body;
-
-    await service.act({
-      instanceId,
-      userId: req.user.id,
-      action,
-      remarks
-    });
-
-    res.json({ success: true });
-  }
+  ctrl.performAction
 );
 
-router.get('/my-pending', auth('workflow.view'), async (req, res) => {
-  const instances = await Instance.findAll({
-    where: { status: 'PENDING' },
-    include: [Workflow]
-  });
+/* =====================================================
+   WORKFLOW QUERIES
+===================================================== */
 
-  res.json(instances);
-});
+// pending approvals for logged-in user
+router.get(
+  '/my-pending',
+  auth('workflow.view'),
+  ctrl.getMyPending
+);
 
-router.get('/instance/:id', auth('workflow.view'), async (req, res) => {
-  const instance = await Instance.findByPk(req.params.id, {
-    include: [Workflow, Action]
-  });
-
-  if (!instance) {
-    return res.status(404).json({ message: 'Workflow not found' });
-  }
-
-  res.json(instance);
-});
+// workflow instance detail
+router.get(
+  '/instance/:id',
+  auth('workflow.view'),
+  ctrl.getInstance
+);
 
 module.exports = router;

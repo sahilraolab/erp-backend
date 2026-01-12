@@ -82,9 +82,19 @@ const Company = sequelize.define('company', {
   }
 });
 
-Company.beforeValidate(async (company) => {
+/* ✅ Enterprise-safe code generation */
+Company.beforeValidate(async (company, options) => {
   if (!company.code) {
-    company.code = await generateCode('CMP', 'companies');
+    if (!options.transaction) {
+      throw new Error('Transaction is required for Company code generation');
+    }
+
+    company.code = await generateCode({
+      module: 'MASTERS',
+      entity: 'COMPANY',
+      prefix: 'CMP',
+      transaction: options.transaction
+    });
   }
 });
 

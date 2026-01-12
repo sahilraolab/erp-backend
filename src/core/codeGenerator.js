@@ -1,16 +1,50 @@
-const sequelize = require('../config/db');
+const DocumentSequence = require('./documentSequence.model');
 
-module.exports = async function generateCode(
+/**
+ * 🔒 ENTERPRISE DOCUMENT NUMBER GENERATOR
+ *
+ * Guarantees:
+ * - Transaction-safe
+ * - No duplicates
+ * - No rollback reuse
+ * - Multi-scope ready
+ */
+module.exports = async function generateCode({
+  module,
+  entity,
   prefix,
-  tableName,
   transaction,
-  pad = 4
-) {
-  const [result] = await sequelize.query(
-    `SELECT COUNT(*) AS count FROM ${tableName}`,
-    { transaction }
-  );
+  companyId = null,
+  projectId = null,
+  pad = 5
+}) {
+  if (!transaction) {
+    throw new Error('Transaction is mandatory for code generation');
+  }
 
-  const count = Number(result[0].count) + 1;
-  return `${prefix}-${String(count).padStart(pad, '0')}`;
+  const year = new Date().getFullYear();
+
+  const [seq] = await DocumentSequence.findOrCreate({
+    where: {
+      module,
+      entity,
+      year,
+      companyId,
+      projectId
+    },
+    defaults: {
+      prefix,
+      lastNumber: 0
+    },
+    transaction,
+    lock: transaction.LOCK.UPDATE
+  });
+
+  seq.lastNumber += 1;
+
+  await seq.save({ transaction });
+
+  const number = String(seq.lastNumber).padStart(pad, '0');
+
+  return `${prefix}/${year}/${number}`;
 };

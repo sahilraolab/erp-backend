@@ -3,7 +3,7 @@ const User = require('../modules/admin/user.model');
 const Role = require('../modules/admin/role.model');
 const Permission = require('../modules/admin/permission.model');
 
-module.exports = (requiredPermission = null) => {
+module.exports = (requiredPermission = '__AUTH__') => {
   return async (req, res, next) => {
     const header = req.headers.authorization;
 

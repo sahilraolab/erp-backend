@@ -55,9 +55,19 @@ const Material = sequelize.define('material', {
   }
 });
 
-Material.beforeValidate(async (material) => {
+/* ✅ Enterprise-safe code generation */
+Material.beforeValidate(async (material, options) => {
   if (!material.code) {
-    material.code = await generateCode('MAT', 'materials');
+    if (!options.transaction) {
+      throw new Error('Transaction is required for Material code generation');
+    }
+
+    material.code = await generateCode({
+      module: 'MASTERS',
+      entity: 'MATERIAL',
+      prefix: 'MAT',
+      transaction: options.transaction
+    });
   }
 });
 

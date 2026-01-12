@@ -5,7 +5,7 @@ const ctrl = require("./auth.controller");
 // Public auth endpoints
 router.post("/login", ctrl.login);
 router.post("/forgot-password", ctrl.forgotPassword);
-router.post("/logout", auth(null), ctrl.logout);
+router.post("/logout", auth("null"), ctrl.logout);
 
 
 /* ================= PROFILE ================= */

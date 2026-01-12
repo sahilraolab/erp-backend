@@ -5,6 +5,18 @@ const ctrl = require('./inventory.controller');
 // GRN
 router.post('/grn', auth('inventory.create'), ctrl.createGRN);
 router.put('/grn/:id/approve', auth('inventory.approve'), ctrl.approveGRN);
+router.get(
+  '/grn',
+  auth('inventory.view'),
+  ctrl.listGRNs
+);
+
+router.get(
+  '/grn/:id',
+  auth('inventory.view'),
+  ctrl.getGRN
+);
+
 
 // Inventory
 router.post('/issue', auth('inventory.issue'), ctrl.issueMaterial);

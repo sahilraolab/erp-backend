@@ -28,6 +28,59 @@ router.put(
   ctrl.submitSiteReq
 );
 
+// Site GRN
+router.get(
+  '/grn/:id',
+  auth('site.view'),
+  ctrl.getSiteGRN
+);
+
+// Site Transfer
+router.get(
+  '/transfers/:id',
+  auth('site.view'),
+  ctrl.getTransfer
+);
+
+// DPR
+router.get(
+  '/dpr',
+  auth('site.view'),
+  ctrl.listDPR
+);
+
+router.get(
+  '/dpr/:id',
+  auth('site.view'),
+  ctrl.getDPR
+);
+
+// WPR
+router.get(
+  '/wpr',
+  auth('site.view'),
+  ctrl.listWPR
+);
+
+router.get(
+  '/wpr/:id',
+  auth('site.view'),
+  ctrl.getWPR
+);
+
+// Muster
+router.get(
+  '/muster',
+  auth('site.view'),
+  ctrl.listMuster
+);
+
+router.get(
+  '/muster/:id',
+  auth('site.view'),
+  ctrl.getMuster
+);
+
 
 /* ================= SITE GRN ================= */
 
