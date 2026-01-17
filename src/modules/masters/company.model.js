@@ -2,63 +2,87 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
 const Company = sequelize.define('company', {
-  code: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true
+
+  /* ================= SYSTEM IDENTITY ================= */
+
+  id: {
+    type: DataTypes.BIGINT,
+    autoIncrement: true,
+    primaryKey: true
   },
 
+  code: {
+    type: DataTypes.STRING(20),
+    allowNull: false,
+    comment: 'Business-readable company code'
+  },
+
+  /* ================= LEGAL IDENTITY ================= */
+
   name: {
-    type: DataTypes.STRING,
-    allowNull: false
+    type: DataTypes.STRING(150),
+    allowNull: false,
+    comment: 'Common company name'
   },
 
   legalName: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-
-  gstNo: {
-    type: DataTypes.STRING,
-    unique: true
+    type: DataTypes.STRING(200),
+    allowNull: false,
+    comment: 'Registered legal name'
   },
 
   pan: {
-    type: DataTypes.STRING
+    type: DataTypes.STRING(10),
+    allowNull: true,
+    comment: 'PAN of company'
   },
 
+  gstNo: {
+    type: DataTypes.STRING(15),
+    allowNull: true,
+    comment: 'GST number (can be null for unregistered companies)'
+  },
+
+  /* ================= ADDRESS ================= */
+
   addressLine1: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(200),
     allowNull: false
   },
 
-  addressLine2: DataTypes.STRING,
+  addressLine2: {
+    type: DataTypes.STRING(200),
+    allowNull: true
+  },
 
   city: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(100),
     allowNull: false
   },
 
   state: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(100),
     allowNull: false
   },
 
   pincode: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(10),
     allowNull: false
   },
 
   country: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(100),
     allowNull: false,
     defaultValue: 'India'
   },
 
+  /* ================= FINANCIAL CONFIG ================= */
+
   baseCurrency: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(3),
     allowNull: false,
-    defaultValue: 'INR'
+    defaultValue: 'INR',
+    comment: 'ISO currency code'
   },
 
   financialYearStart: {
@@ -71,25 +95,40 @@ const Company = sequelize.define('company', {
     defaultValue: false
   },
 
+  ownershipType: {
+    type: DataTypes.ENUM('SOLE', 'PARTNERSHIP', 'PRIVATE_LTD', 'LLP', 'OTHER'),
+    allowNull: false,
+    defaultValue: 'PRIVATE_LTD',
+    comment: 'Used for partner/investor logic'
+  },
+
+  /* ================= STATUS ================= */
+
   status: {
     type: DataTypes.ENUM('ACTIVE', 'SUSPENDED', 'CLOSED'),
+    allowNull: false,
     defaultValue: 'ACTIVE'
   },
 
-  isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
-  },
+  /* ================= AUDIT ================= */
 
   createdBy: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.BIGINT,
     allowNull: false
+  },
+
+  updatedBy: {
+    type: DataTypes.BIGINT,
+    allowNull: true
   }
+
 }, {
   tableName: 'companies',
+  timestamps: true,
+  paranoid: false,
   indexes: [
     { unique: true, fields: ['code'] },
-    { unique: true, fields: ['gstNo'] }
+    { fields: ['status'] }
   ]
 });
 

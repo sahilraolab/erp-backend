@@ -2,21 +2,57 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
 const TaxGroup = sequelize.define('tax_group', {
-  code: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true // GST18, GST12, IGST18
+
+  id: {
+    type: DataTypes.BIGINT,
+    autoIncrement: true,
+    primaryKey: true
   },
 
-  name: {
-    type: DataTypes.STRING,
+  companyId: {
+    type: DataTypes.BIGINT,
     allowNull: false
   },
 
-  isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
+  code: {
+    type: DataTypes.STRING(30),
+    allowNull: false,
+    comment: 'GST18, IGST18, etc.'
+  },
+
+  name: {
+    type: DataTypes.STRING(100),
+    allowNull: false
+  },
+
+  status: {
+    type: DataTypes.ENUM('ACTIVE', 'INACTIVE'),
+    allowNull: false,
+    defaultValue: 'ACTIVE'
+  },
+
+  createdBy: {
+    type: DataTypes.BIGINT,
+    allowNull: false
+  },
+
+  updatedBy: {
+    type: DataTypes.BIGINT,
+    allowNull: true
   }
+
+}, {
+  tableName: 'tax_groups',
+  timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['companyId', 'code']
+    },
+    {
+      fields: ['companyId']
+    }
+  ]
 });
 
 module.exports = TaxGroup;
