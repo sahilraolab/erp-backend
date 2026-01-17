@@ -93,6 +93,12 @@ const StockLedger = sequelize.define('stock_ledger', {
     comment: 'Valuation rate (FIFO / WAC)'
   },
 
+  value: {
+    type: DataTypes.DECIMAL(16, 2),
+    allowNull: false,
+    defaultValue: 0
+  },
+
   valueIn: {
     type: DataTypes.DECIMAL(16, 2),
     allowNull: false,
