@@ -1,77 +1,100 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
-const generateCode = require('../../core/codeGenerator');
 
-const Project = sequelize.define('project', {
-  name: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
+const Project = sequelize.define(
+  'project',
+  {
+    companyId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
 
-  code: {
-    type: DataTypes.STRING,
-    unique: true,
-    allowNull: false
-  },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
 
-  // Address
-  addressLine1: DataTypes.STRING,
-  addressLine2: DataTypes.STRING,
-  city: DataTypes.STRING,
-  state: DataTypes.STRING,
-  pincode: DataTypes.STRING,
-  country: {
-    type: DataTypes.STRING,
-    defaultValue: 'India'
-  },
+    code: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true
+    },
 
-  companyId: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
+    description: {
+      type: DataTypes.TEXT
+    },
 
-  budget: {
-    type: DataTypes.DECIMAL(15, 2),
-    defaultValue: 0
-  },
+    /* ================= ADDRESS ================= */
 
-  startDate: {
-    type: DataTypes.DATEONLY
-  },
+    addressLine1: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
 
-  endDate: {
-    type: DataTypes.DATEONLY
-  },
+    addressLine2: {
+      type: DataTypes.STRING
+    },
 
-  status: {
-    type: DataTypes.ENUM('PLANNED', 'ONGOING', 'ON_HOLD', 'COMPLETED'),
-    defaultValue: 'PLANNED'
-  },
+    city: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
 
-  description: {
-    type: DataTypes.TEXT
-  },
+    state: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
 
-  isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
-  }
-});
+    country: {
+      type: DataTypes.STRING,
+      defaultValue: 'India'
+    },
 
-/* ✅ Enterprise-safe code generation */
-Project.beforeValidate(async (project, options) => {
-  if (!project.code) {
-    if (!options.transaction) {
-      throw new Error('Transaction is required for Project code generation');
+    pincode: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
+
+    /* ================= LIFECYCLE ================= */
+
+    startDate: {
+      type: DataTypes.DATEONLY
+    },
+
+    endDate: {
+      type: DataTypes.DATEONLY
+    },
+
+    status: {
+      type: DataTypes.ENUM(
+        'PLANNING',
+        'ACTIVE',
+        'ON_HOLD',
+        'COMPLETED',
+        'CLOSED'
+      ),
+      defaultValue: 'PLANNING'
+    },
+
+    locked: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
+    },
+
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true
     }
-
-    project.code = await generateCode({
-      module: 'MASTERS',
-      entity: 'PROJECT',
-      prefix: 'PRJ',
-      transaction: options.transaction
-    });
+  },
+  {
+    indexes: [
+      { fields: ['companyId'] },
+      { unique: true, fields: ['code'] },
+      { fields: ['status'] },
+      { fields: ['isActive'] },
+      { fields: ['city', 'state'] }
+    ]
   }
-});
+);
 
 module.exports = Project;

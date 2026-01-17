@@ -5,54 +5,33 @@ const Tax = sequelize.define('tax', {
   code: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true,
-    comment: 'Tax code e.g. GST18, CGST9'
+    unique: true // GST, TDS, CESS
   },
 
   name: {
     type: DataTypes.STRING,
-    allowNull: false,
-    comment: 'Tax name e.g. GST 18%'
-  },
-
-  rate: {
-    type: DataTypes.DECIMAL(5, 2),
-    allowNull: false,
-    comment: 'Tax rate percentage'
+    allowNull: false
   },
 
   type: {
     type: DataTypes.ENUM(
       'GST',
-      'CGST',
-      'SGST',
-      'IGST',
-      'VAT',
+      'TDS',
       'CESS',
       'OTHER'
     ),
-    allowNull: false,
-    comment: 'Tax classification'
+    allowNull: false
   },
 
-  accountId: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    comment: 'Ledger account where this tax is posted'
-  },
-
-  description: {
-    type: DataTypes.TEXT,
-    allowNull: true
+  isRecoverable: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true // GST yes, TDS no
   },
 
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
   }
-}, {
-  tableName: 'taxes',
-  timestamps: true
 });
 
 module.exports = Tax;

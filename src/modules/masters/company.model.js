@@ -1,101 +1,96 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
-const generateCode = require('../../core/codeGenerator');
 
 const Company = sequelize.define('company', {
+  code: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+
   name: {
     type: DataTypes.STRING,
     allowNull: false
   },
 
-  code: {
+  legalName: {
     type: DataTypes.STRING,
-    unique: true,
     allowNull: false
   },
 
-  phone: {
+  gstNo: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Primary contact number'
-  },
-
-  email: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    validate: {
-      isEmail: true
-    }
-  },
-
-  gstin: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'GST Identification Number'
+    unique: true
   },
 
   pan: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Permanent Account Number'
+    type: DataTypes.STRING
   },
 
-  // Structured address (professional & report-friendly)
   addressLine1: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false
   },
 
-  addressLine2: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
+  addressLine2: DataTypes.STRING,
 
   city: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false
   },
 
   state: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false
   },
 
   pincode: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false
   },
 
   country: {
     type: DataTypes.STRING,
+    allowNull: false,
     defaultValue: 'India'
   },
 
-  currency: {
+  baseCurrency: {
     type: DataTypes.STRING,
+    allowNull: false,
     defaultValue: 'INR'
+  },
+
+  financialYearStart: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+
+  hasBranches: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+
+  status: {
+    type: DataTypes.ENUM('ACTIVE', 'SUSPENDED', 'CLOSED'),
+    defaultValue: 'ACTIVE'
   },
 
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
-  }
-});
+  },
 
-/* ✅ Enterprise-safe code generation */
-Company.beforeValidate(async (company, options) => {
-  if (!company.code) {
-    if (!options.transaction) {
-      throw new Error('Transaction is required for Company code generation');
-    }
-
-    company.code = await generateCode({
-      module: 'MASTERS',
-      entity: 'COMPANY',
-      prefix: 'CMP',
-      transaction: options.transaction
-    });
+  createdBy: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   }
+}, {
+  tableName: 'companies',
+  indexes: [
+    { unique: true, fields: ['code'] },
+    { unique: true, fields: ['gstNo'] }
+  ]
 });
 
 module.exports = Company;

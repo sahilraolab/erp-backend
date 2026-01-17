@@ -5,35 +5,38 @@ const CostCenter = sequelize.define('cost_center', {
   code: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true,
-    comment: 'Cost center code e.g. CC001, ADMIN'
+    unique: true // CC-SITE-A, CC-HO
   },
 
   name: {
     type: DataTypes.STRING,
-    allowNull: false,
-    comment: 'Cost center name'
-  },
-
-  budget: {
-    type: DataTypes.DECIMAL(15, 2),
-    allowNull: false,
-    defaultValue: 0,
-    comment: 'Planned budget for this cost center'
+    allowNull: false
   },
 
   description: {
-    type: DataTypes.TEXT,
+    type: DataTypes.STRING,
     allowNull: true
+  },
+
+  companyId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+
+  projectId: {
+    type: DataTypes.INTEGER,
+    allowNull: true // NULL = common / HO
+  },
+
+  parentId: {
+    type: DataTypes.INTEGER,
+    allowNull: true // enables hierarchy (optional use)
   },
 
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
   }
-}, {
-  tableName: 'cost_centers',
-  timestamps: true
 });
 
 module.exports = CostCenter;

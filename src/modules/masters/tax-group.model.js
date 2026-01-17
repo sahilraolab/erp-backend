@@ -1,25 +1,15 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
-const Department = sequelize.define('department', {
+const TaxGroup = sequelize.define('tax_group', {
   code: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true // ENG, PUR, ACC, QA
+    unique: true // GST18, GST12, IGST18
   },
 
   name: {
     type: DataTypes.STRING,
-    allowNull: false
-  },
-
-  description: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-
-  companyId: {
-    type: DataTypes.INTEGER,
     allowNull: false
   },
 
@@ -29,4 +19,4 @@ const Department = sequelize.define('department', {
   }
 });
 
-module.exports = Department;
+module.exports = TaxGroup;

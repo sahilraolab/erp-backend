@@ -1,16 +1,15 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
-const generateCode = require('../../core/codeGenerator');
 
 const Material = sequelize.define('material', {
-  name: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-
   code: {
     type: DataTypes.STRING,
-    unique: true,
+    allowNull: false,
+    unique: true
+  },
+
+  name: {
+    type: DataTypes.STRING,
     allowNull: false
   },
 
@@ -19,24 +18,34 @@ const Material = sequelize.define('material', {
     allowNull: false
   },
 
-  uomId: {
+  subCategory: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  materialType: {
+    type: DataTypes.ENUM('STOCK', 'NON_STOCK', 'SERVICE'),
+    allowNull: false
+  },
+
+  baseUomId: {
     type: DataTypes.INTEGER,
     allowNull: false
   },
 
-  sizeValue: {
-    type: DataTypes.DECIMAL(10, 3),
+  secondaryUomId: {
+    type: DataTypes.INTEGER,
     allowNull: true
   },
 
-  sizeUnit: {
-    type: DataTypes.STRING,
+  conversionFactor: {
+    type: DataTypes.DECIMAL(12,6),
     allowNull: true
   },
 
-  specification: {
-    type: DataTypes.STRING,
-    allowNull: true
+  valuationMethod: {
+    type: DataTypes.ENUM('FIFO', 'WEIGHTED_AVG'),
+    allowNull: false
   },
 
   hsnCode: {
@@ -44,30 +53,29 @@ const Material = sequelize.define('material', {
     allowNull: true
   },
 
-  description: {
-    type: DataTypes.TEXT,
+  defaultTaxGroupId: {
+    type: DataTypes.INTEGER,
     allowNull: true
+  },
+
+  requiresQc: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+
+  isConsumable: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+
+  isReturnable: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   },
 
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
-  }
-});
-
-/* ✅ Enterprise-safe code generation */
-Material.beforeValidate(async (material, options) => {
-  if (!material.code) {
-    if (!options.transaction) {
-      throw new Error('Transaction is required for Material code generation');
-    }
-
-    material.code = await generateCode({
-      module: 'MASTERS',
-      entity: 'MATERIAL',
-      prefix: 'MAT',
-      transaction: options.transaction
-    });
   }
 });
 

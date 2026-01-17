@@ -1,54 +1,47 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
-const generateCode = require('../../core/codeGenerator');
 
 const Supplier = sequelize.define('supplier', {
+  code: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+
   name: {
     type: DataTypes.STRING,
     allowNull: false
   },
 
-  code: {
-    type: DataTypes.STRING,
-    unique: true,
+  supplierType: {
+    type: DataTypes.ENUM(
+      'MATERIAL',
+      'SERVICE',
+      'LABOUR',
+      'TRANSPORT',
+      'MIXED'
+    ),
     allowNull: false
   },
 
-  contactPerson: {
+  gstNo: {
     type: DataTypes.STRING,
     allowNull: true
-  },
-
-  phone: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Primary contact number'
-  },
-
-  email: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    validate: {
-      isEmail: true
-    }
-  },
-
-  gstin: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'GST Identification Number'
   },
 
   pan: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Permanent Account Number'
+    allowNull: true
   },
 
-  // Structured address (same pattern as Company)
+  isGstRegistered: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+
   addressLine1: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false
   },
 
   addressLine2: {
@@ -58,43 +51,64 @@ const Supplier = sequelize.define('supplier', {
 
   city: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false
   },
 
   state: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false
   },
 
   pincode: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false
   },
 
   country: {
     type: DataTypes.STRING,
+    allowNull: false,
     defaultValue: 'India'
+  },
+
+  contactPerson: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+
+  phone: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+
+  paymentTermDays: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 30
+  },
+
+  creditLimit: {
+    type: DataTypes.DECIMAL(14,2),
+    allowNull: true
+  },
+
+  isBlacklisted: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+
+  blacklistReason: {
+    type: DataTypes.STRING,
+    allowNull: true
   },
 
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
-  }
-});
-
-/* ✅ Enterprise-safe code generation */
-Supplier.beforeValidate(async (supplier, options) => {
-  if (!supplier.code) {
-    if (!options.transaction) {
-      throw new Error('Transaction is required for Supplier code generation');
-    }
-
-    supplier.code = await generateCode({
-      module: 'MASTERS',
-      entity: 'SUPPLIER',
-      prefix: 'SUP',
-      transaction: options.transaction
-    });
   }
 });
 
