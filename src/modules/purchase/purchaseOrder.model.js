@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
-const Quotation = sequelize.define('quotation', {
+const PurchaseOrder = sequelize.define('purchase_order', {
 
   /* ================= SYSTEM IDENTITY ================= */
 
@@ -23,11 +23,24 @@ const Quotation = sequelize.define('quotation', {
     allowNull: false
   },
 
-  /* ================= RFQ CONTEXT ================= */
+  /* ================= ENGINEERING / BUDGET LOCKS ================= */
 
-  rfqId: {
+  budgetId: {
     type: DataTypes.BIGINT,
-    allowNull: false
+    allowNull: false,
+    comment: 'Approved budget used for this PO'
+  },
+
+  estimateId: {
+    type: DataTypes.BIGINT,
+    allowNull: false,
+    comment: 'Approved estimate used for this PO'
+  },
+
+  quotationId: {
+    type: DataTypes.BIGINT,
+    allowNull: false,
+    comment: 'Approved quotation'
   },
 
   supplierId: {
@@ -35,42 +48,36 @@ const Quotation = sequelize.define('quotation', {
     allowNull: false
   },
 
-  /**
-   * Link to RFQ-Supplier invitation
-   */
-  rfqSupplierId: {
-    type: DataTypes.BIGINT,
-    allowNull: false
-  },
+  /* ================= BUSINESS ID ================= */
 
-  /* ================= ENGINEERING / BUDGET ================= */
-
-  budgetId: {
-    type: DataTypes.BIGINT,
-    allowNull: false
-  },
-
-  estimateId: {
-    type: DataTypes.BIGINT,
-    allowNull: false
+  poNo: {
+    type: DataTypes.STRING(30),
+    allowNull: false,
+    comment: 'PO number (company scoped)'
   },
 
   /* ================= DOCUMENT ================= */
 
   attachmentPath: {
     type: DataTypes.STRING(500),
-    allowNull: true
+    allowNull: true,
+    comment: 'Signed PO document'
   },
 
-  validTill: {
+  poDate: {
     type: DataTypes.DATE,
-    allowNull: true
+    allowNull: false,
+    defaultValue: DataTypes.NOW
   },
 
-  currency: {
-    type: DataTypes.STRING(10),
+  /**
+   * Cached total derived from PO lines
+   * NOT authoritative truth
+   */
+  derivedTotal: {
+    type: DataTypes.DECIMAL(16, 2),
     allowNull: false,
-    defaultValue: 'INR'
+    defaultValue: 0
   },
 
   /* ================= LIFECYCLE ================= */
@@ -79,10 +86,10 @@ const Quotation = sequelize.define('quotation', {
     type: DataTypes.ENUM(
       'DRAFT',
       'SUBMITTED',
-      'EVALUATED',
       'APPROVED',
-      'REJECTED',
-      'EXPIRED'
+      'PARTIALLY_RECEIVED',
+      'CLOSED',
+      'CANCELLED'
     ),
     allowNull: false,
     defaultValue: 'DRAFT'
@@ -94,7 +101,7 @@ const Quotation = sequelize.define('quotation', {
     defaultValue: false
   },
 
-  /* ================= DECISION ================= */
+  /* ================= APPROVAL ================= */
 
   approvedAt: {
     type: DataTypes.DATE,
@@ -106,7 +113,19 @@ const Quotation = sequelize.define('quotation', {
     allowNull: true
   },
 
-  rejectionReason: {
+  /* ================= CANCELLATION ================= */
+
+  cancelledAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+
+  cancelledBy: {
+    type: DataTypes.BIGINT,
+    allowNull: true
+  },
+
+  cancellationReason: {
     type: DataTypes.STRING(255),
     allowNull: true
   },
@@ -124,13 +143,23 @@ const Quotation = sequelize.define('quotation', {
   }
 
 }, {
-  tableName: 'quotations',
+  tableName: 'purchase_orders',
   timestamps: true,
   paranoid: false,
   indexes: [
     {
       unique: true,
-      fields: ['rfqId', 'supplierId']
+      fields: ['companyId', 'poNo']
+    },
+    {
+      unique: true,
+      fields: ['quotationId']
+    },
+    {
+      fields: ['projectId']
+    },
+    {
+      fields: ['supplierId']
     },
     {
       fields: ['status']
@@ -138,22 +167,12 @@ const Quotation = sequelize.define('quotation', {
   ]
 });
 
-/* ================= BUSINESS ENFORCEMENT ================= */
+/* ================= IMMUTABILITY ENFORCEMENT ================= */
 
-Quotation.beforeUpdate((q) => {
-  if (q.locked) {
-    throw new Error('Approved or rejected quotation cannot be modified');
+PurchaseOrder.beforeUpdate((po) => {
+  if (po.locked) {
+    throw new Error('Locked purchase order cannot be modified');
   }
 });
 
-Quotation.beforeSave((q) => {
-  if (
-    q.status === 'APPROVED' &&
-    q.validTill &&
-    new Date(q.validTill) < new Date()
-  ) {
-    throw new Error('Expired quotation cannot be approved');
-  }
-});
-
-module.exports = Quotation;
+module.exports = PurchaseOrder;

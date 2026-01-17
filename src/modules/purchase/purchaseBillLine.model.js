@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/db');
 
-const QuotationLine = sequelize.define('quotation_line', {
+const PurchaseBillLine = sequelize.define('purchase_bill_line', {
 
   /* ================= SYSTEM IDENTITY ================= */
 
@@ -13,7 +13,7 @@ const QuotationLine = sequelize.define('quotation_line', {
 
   /* ================= OWNERSHIP ================= */
 
-  quotationId: {
+  purchaseBillId: {
     type: DataTypes.BIGINT,
     allowNull: false
   },
@@ -21,14 +21,27 @@ const QuotationLine = sequelize.define('quotation_line', {
   costCenterId: {
     type: DataTypes.BIGINT,
     allowNull: false,
-    comment: 'Inherited from requisition / RFQ'
+    comment: 'Cost center for accounting & budget impact'
   },
 
-  /* ================= ENGINEERING TRACEABILITY ================= */
+  /* ================= TRACEABILITY ================= */
+
+  purchaseOrderLineId: {
+    type: DataTypes.BIGINT,
+    allowNull: false,
+    comment: 'Source PO line'
+  },
+
+  grnLineId: {
+    type: DataTypes.BIGINT,
+    allowNull: false,
+    comment: 'Source GRN line (billing against receipt)'
+  },
 
   bbsId: {
     type: DataTypes.BIGINT,
-    allowNull: true
+    allowNull: true,
+    comment: 'Engineering linkage'
   },
 
   /* ================= ITEM ================= */
@@ -43,17 +56,19 @@ const QuotationLine = sequelize.define('quotation_line', {
     allowNull: false
   },
 
-  quantity: {
+  billedQty: {
     type: DataTypes.DECIMAL(12, 3),
-    allowNull: false
+    allowNull: false,
+    comment: 'Quantity billed (<= GRN qty)'
   },
+
+  /* ================= PRICING SNAPSHOT ================= */
 
   rate: {
     type: DataTypes.DECIMAL(14, 4),
-    allowNull: false
+    allowNull: false,
+    comment: 'Rate as per supplier bill'
   },
-
-  /* ================= AMOUNT SNAPSHOT ================= */
 
   baseAmount: {
     type: DataTypes.DECIMAL(16, 2),
@@ -99,30 +114,30 @@ const QuotationLine = sequelize.define('quotation_line', {
   }
 
 }, {
-  tableName: 'quotation_lines',
+  tableName: 'purchase_bill_lines',
   timestamps: true,
   paranoid: false,
   indexes: [
     {
-      fields: ['quotationId']
+      fields: ['purchaseBillId']
     },
     {
-      fields: ['materialId']
+      fields: ['purchaseOrderLineId']
     },
     {
-      fields: ['bbsId']
+      fields: ['grnLineId']
     },
     {
       unique: true,
-      fields: ['quotationId', 'materialId', 'bbsId']
+      fields: ['purchaseBillId', 'grnLineId']
     }
   ]
 });
 
 /* ================= SAFE DERIVED CALCULATIONS ================= */
 
-QuotationLine.beforeSave((line) => {
-  const qty = Number(line.quantity || 0);
+PurchaseBillLine.beforeSave((line) => {
+  const qty = Number(line.billedQty || 0);
   const rate = Number(line.rate || 0);
   const taxRate = Number(line.taxRate || 0);
 
@@ -134,4 +149,4 @@ QuotationLine.beforeSave((line) => {
   line.totalAmount = (base + tax).toFixed(2);
 });
 
-module.exports = QuotationLine;
+module.exports = PurchaseBillLine;
