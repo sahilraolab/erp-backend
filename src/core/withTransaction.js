@@ -8,7 +8,7 @@ module.exports = async (callback) => {
   }
 
   const t = await sequelize.transaction({
-    isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE
   });
 
   try {

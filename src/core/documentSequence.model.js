@@ -1,3 +1,4 @@
+// src/core/documentSequence.model.js
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 
@@ -8,21 +9,17 @@ const DocumentSequence = sequelize.define(
       type: DataTypes.ENUM(
         'PURCHASE',
         'INVENTORY',
-        'SITE',
         'CONTRACTS',
         'ACCOUNTS',
-        'ENGINEERING'
+        'ENGINEERING',
+        'PARTNERS',
+        'APPROVALS'
       ),
       allowNull: false
     },
 
     entity: {
       type: DataTypes.STRING(50),
-      allowNull: false
-    },
-
-    prefix: {
-      type: DataTypes.STRING(10),
       allowNull: false
     },
 
@@ -59,10 +56,16 @@ const DocumentSequence = sequelize.define(
     ],
 
     validate: {
-      requireScope() {
+      requireSingleScope() {
         if (!this.companyId && !this.projectId) {
           throw new Error(
             'DocumentSequence must have either companyId or projectId'
+          );
+        }
+
+        if (this.companyId && this.projectId) {
+          throw new Error(
+            'DocumentSequence cannot have both companyId and projectId'
           );
         }
       }

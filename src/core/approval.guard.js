@@ -1,34 +1,39 @@
+// src/core/approval.guard.js
 const ApprovalRequest = require('../modules/approvals/approvalRequest.model');
 const ApprovalLevel = require('../modules/approvals/approvalLevel.model');
 
 module.exports = async function checkApprovalAuthority({
-  userId,
+  user,
   companyId,
   documentType,
-  documentId,
-  roleId
+  documentId
 }) {
-  // Fetch active approval request
+  if (!user || !user.role) {
+    throw new Error('Invalid user context');
+  }
+
   const approval = await ApprovalRequest.findOne({
     where: {
       documentType,
       documentId,
-      companyId,
-      status: 'PENDING'
+      companyId
     }
   });
 
   if (!approval) {
-    throw new Error('No pending approval found for document');
+    throw new Error('Approval record not found');
   }
 
-  // Fetch current approval level
+  if (approval.status !== 'PENDING') {
+    throw new Error(`Approval already ${approval.status}`);
+  }
+
   const level = await ApprovalLevel.findOne({
     where: {
       documentType,
       companyId,
       levelNo: approval.currentLevel,
-      roleId
+      roleId: user.roleId
     }
   });
 
